@@ -1,0 +1,111 @@
+#!/usr/bin/perl -w 
+
+use strict;
+use warnings; 
+
+use lib '.';
+use CLog; 
+use CConf; 
+use CScan::Dir; 
+use CServer;
+use File::Basename;
+use Getopt::Std;
+
+#use Getopt;
+#use Archive::Tar;
+
+my $BASEDIR = "/home/tpoder/police/config";
+my %OPTS;
+$OPTS{'d'} = 0;
+$OPTS{'q'} = 0;
+$OPTS{'c'} = "/home/tpoder/police/config";
+
+sub usage() {
+	printf "Police server, usage: \n\n";
+	printf "     %s [ <options> ] <action> <system> <system> ... \n\n", basename($0);
+	printf "Oprions:\n";
+	printf "    -m        : send the result through an email instead of print to stdout \n";
+	printf "    -e        : do not send the empty reports \n";
+	printf "    -q        : quite mode, do not show the progress bar  \n";
+	printf "    -d <num>  : debug level, default value is 0  \n";
+	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $BASEDIR;
+	printf "    -p <num>  : perform the paraell scanning, num identifies the number of process run in concurency. This option turns on the -q and -q option   \n\n";
+	printf "Actions:   \n";
+	printf "    client    : connect to the client and perform  the scan and the backup operation  \n";
+	printf "    server    : scan server packages \n";
+	printf "    diff      : print diff (the client and server action must be run before it)  \n";
+	printf "    check     : client + server + diff action blended into one command   \n";
+	printf "    download  : download differend files from the client side   \n\n";
+	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
+
+	exit 1;	
+}
+
+if ( !getopts("emqd:c:p:",\%OPTS) ) {
+	printf "Unknown option\n";
+	usage;
+};
+
+
+
+my $LOG =  CLog->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'});
+
+if (!chdir $OPTS{'c'}) {
+	$LOG->Error("Can't change to directory  %s", $OPTS{'c'});
+	exit 1;
+}
+
+# process command and hosts lists 
+my $CMD = $ARGV[0]; shift;
+my %SYSTEMS;
+foreach (@ARGV) {
+	$SYSTEMS{$_} = 1;
+}
+
+# check if the command and list of hosts is set 
+if (!defined($CMD) || $CMD eq "" || !%SYSTEMS || keys(%SYSTEMS) == 0) {
+	usage();
+}
+
+
+my %SRV; 	# the hash where the server instances are stored 
+
+foreach my $system (glob("*")) {
+	next if ( ! -f  $system );
+	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
+	$LOG->Progress("%s > loading the configuration... ", $system);
+	$LOG->Debug(10, "%s > loading the configuration", $system);
+	$SRV{$system} = CServer->new($system, CfgDir => $BASEDIR, Log => $LOG);
+	$LOG->Progress("loading the configuration... done\n", $system);
+}
+
+foreach my $system (keys %SRV) {
+	if ($CMD eq "client") {
+		$SRV{$system}->ScanClient();
+	} elsif ($CMD eq "server") {
+		$SRV{$system}->ScanPackages();
+	} elsif ($CMD eq "diff") {
+		$SRV{$system}->MkDiff();
+		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
+	} elsif ($CMD eq "check") {
+		$SRV{$system}->ScanClient();
+		$SRV{$system}->ScanPackages();
+		$SRV{$system}->MkDiff();
+		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
+	} elsif ($CMD eq "download") {
+		$SRV{$system}->Download();
+	} else {
+		$LOG->Error("Unknow command %s", $CMD);
+	}
+}
+
+exit 0;
+
+
+
+#$server->ScanClient();
+#$server->ScanPackages();
+#$server->MkDiff();
+#$server->Download();
+
+1;
