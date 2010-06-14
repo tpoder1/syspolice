@@ -259,7 +259,7 @@ sub ScanClient {
 	my $sstart = time();
 
 	# repair XXX
-	my $handle = $self->RemoteCmd("cd /home/tpoder/police/bin && ./police-client", $reqfile);
+	my $handle = $self->RemoteCmd("cd /home/tpoder/police/distro/syspolice/bin && ./police-client", $reqfile);
 
 	if (defined($handle)) { 
 		sleep(5);

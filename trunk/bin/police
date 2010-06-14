@@ -3,7 +3,7 @@
 use strict;
 use warnings; 
 
-use lib '.';
+use lib '../lib';
 use CLog; 
 use CConf; 
 use CScan::Dir; 
