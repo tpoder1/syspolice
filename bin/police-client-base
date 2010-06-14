@@ -1,0 +1,94 @@
+#!/usr/bin/perl -w 
+
+use strict;
+use warnings;
+use lib '../lib';
+use CScan::Dir;
+use CLog;
+use XML::Parser;
+
+my $VERSION		= "2010-02-07.01";
+my $PVERSION	= "0.1";		# protocol version 
+
+my @PATHS;
+my %ACTIONS;
+
+##########################################################
+# Handlers                                              #
+##########################################################
+
+# Handle to print scan result on the stdout
+sub PrintFileXML($$) {
+	my ($class, $file, $ref) = @_;
+
+	my $atts = "";
+	while (my ($key, $val) = each %{$ref}) {
+		$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val));
+	}
+   printf "\t\t<file name=\"%s\" %s/>\n", $file, $atts;
+}
+
+# XML server parsing hooks
+sub client_handle_xml_begin {
+	my ($expat, $element, %attrs ) = @_;
+	my $path = join('/', (@{$expat->{'Context'}}, $element));
+
+	$ACTIONS{'scan'} = 1 	if ($path eq 'server/actions/scan');
+	$ACTIONS{'backup'} = 1	if ($path eq 'server/actions/backup');
+}
+
+sub client_handle_xml_char {
+	my ($expat, $element, %attrs) = @_;
+	my $path = join('/', @{$expat->{'Context'}});
+
+	push(@PATHS, $element)	if ($path eq 'server/paths/path');
+}
+
+
+##########################################################
+# Main body                                              #
+##########################################################
+
+my $Log =  CLog->new(ShowProgress => 0);
+
+# parse the XML input from the server
+my $xmlhnd = new XML::Parser(Handlers => { 
+				'Start' => \&client_handle_xml_begin , 
+				'Char' => \&client_handle_xml_char 
+				});
+
+my $res = $xmlhnd->parse(*STDIN, ErrorContext => 3);
+
+# create class CScan which perform file scanning on the file system
+my $Scan = CScan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
+
+$Scan->SetPathsDef(@PATHS);
+
+# create the client output 
+printf "<client version=\"%s\">\n", $VERSION;
+printf "\t<capabilites>\n";
+printf "\t\t<scan/>\n";
+printf "\t\t<backup/>\n";
+printf "\t</capabilites>\n";
+
+if (defined($ACTIONS{'scan'})) {
+	print "\t<scan>\n";
+	$Scan->ScanDir("/");
+	print "\t</scan>\n";
+}
+
+if (defined($ACTIONS{'backup'})) {
+	print "\t<backup>\n";
+	if (defined(@{$Scan->{BackupList}})) {
+		open FB, "| tar -c -z --no-recursion --numeric-owner -T- -f- | base64";
+		foreach (@{$Scan->{BackupList}}) {
+			printf FB "%s\n", $_;
+		}
+		close FB;
+	}
+#	printf "%s\n", join("\n", @{$Scan->{BackupList}});
+	
+	print "\t</backup>\n";
+}
+printf "</client>\n";
+
