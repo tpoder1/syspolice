@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-package CLog;
+package Police::Log;
 
 use strict;
 use warnings;
@@ -133,7 +133,7 @@ sub Progress {
 
 1;
 
-package CScan::Dir;
+package Police::Scan::Dir;
 
 use strict;
 use warnings;
@@ -181,7 +181,7 @@ sub new {
 
 	# set log handle  or create the new one
 	if (!defined($params{Log})) {
-		$class->{Log} = CLog->new();
+		$class->{Log} = Police::Log->new();
 	} else {
 		$class->{Log} = $params{Log};
 	}
@@ -595,7 +595,7 @@ sub client_handle_xml_char {
 # Main body                                              #
 ##########################################################
 
-my $Log =  CLog->new(ShowProgress => 0);
+my $Log =  Police::Log->new(ShowProgress => 0);
 
 # parse the XML input from the server
 my $xmlhnd = new XML::Parser(Handlers => { 
@@ -606,7 +606,7 @@ my $xmlhnd = new XML::Parser(Handlers => {
 my $res = $xmlhnd->parse(*STDIN, ErrorContext => 3);
 
 # create class CScan which perform file scanning on the file system
-my $Scan = CScan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
+my $Scan = Police::Scan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
 
 $Scan->SetPathsDef(@PATHS);
 
