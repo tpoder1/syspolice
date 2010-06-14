@@ -283,14 +283,12 @@ sub ScanPackages {
 	# clean-up the client database
 	(tied(%{$self->{ServerDb}}))->CLEAR();
 
-	# create CScan class to load server packages
-	#my $scan = CScan::Dir->new(Log => $self->{Log}, FilesRef => \%{$self->{ServerDb}});
 	my %scan;
 
-	$scan{'dir'} = CScan::Dir->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'rpm'} = CScan::Rpm->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'tgz'} = CScan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'lst'} = CScan::Lst->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
+	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
+	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
+	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
+	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
 
 #	$scan{'dir'}->SetPathsDef($self->{Config}->GetVal("path"));
 #	$scan{'rpm'}->SetPathsDef($self->{Config}->GetVal("path"));
