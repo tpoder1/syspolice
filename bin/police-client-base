@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 use lib '../lib';
-use CScan::Dir;
-use CLog;
+use Police::Scan::Dir;
+use Police::Log;
 use XML::Parser;
 
 my $VERSION		= "2010-02-07.01";
@@ -49,7 +49,7 @@ sub client_handle_xml_char {
 # Main body                                              #
 ##########################################################
 
-my $Log =  CLog->new(ShowProgress => 0);
+my $Log =  Police::Log->new(ShowProgress => 0);
 
 # parse the XML input from the server
 my $xmlhnd = new XML::Parser(Handlers => { 
@@ -60,7 +60,7 @@ my $xmlhnd = new XML::Parser(Handlers => {
 my $res = $xmlhnd->parse(*STDIN, ErrorContext => 3);
 
 # create class CScan which perform file scanning on the file system
-my $Scan = CScan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
+my $Scan = Police::Scan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
 
 $Scan->SetPathsDef(@PATHS);
 
