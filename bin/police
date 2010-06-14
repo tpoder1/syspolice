@@ -15,7 +15,7 @@ use Getopt::Std;
 #use Getopt;
 #use Archive::Tar;
 
-my $VERSION	= "2.1a";
+my $VERSION	= "2.1.1a";
 my $BASEDIR = "/home/tpoder/police/config";
 my %OPTS;
 $OPTS{'d'} = 0;
