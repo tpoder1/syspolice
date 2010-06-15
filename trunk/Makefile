@@ -9,6 +9,7 @@ DOCDIR=$(PREFIX)/usr/share/doc/${NAME}-${VERSION}/
 CFGDIR=$(PREFIX)/etc/
 CRONDIR=$(PREFIX)/etc/cron.d/
 INSTALL=install
+VERSION:=$(shell cat bin/police | grep VERSION | grep my | cut -f2 -d'"')
 export VISUAL:= vim
 
 help:
@@ -27,7 +28,11 @@ libs:
 		# build libs
 		cd lib && perl Makefile.PL && make
 
-install-clent: 
+install-server: libs
+		cd lib && make install && cd ..
+		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police/client $(BINDIR)
+
+install-client: 
 		# create  the client executable by joining all libs into one file 
 		rm -f bin/police-client
 		echo '#!/usr/bin/perl -w' > bin/police-client
@@ -35,18 +40,11 @@ install-clent:
 		cat lib/Police/Scan/Dir.pm | grep -v "use Police::" >> bin/police-client
 		cat bin/police-client-base | grep -v "use lib" | grep -v "use Police" >> bin/police-client
 		chmod +x bin/police-client
-		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police/client $(BINDIR)
-		
-install-server: main
-		cd lib && make install && cd ..
-		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police/client $(BINDIR)
-		
+		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police-client $(BINDIR)
+
 clean:
 		cd lib && make clean && rm -f Makefile && rm -f Makefile.old && cd ..
 
-VERSION="sss:wq"
-
-VERSION:=$(shell ./bin/police -? | grep Version: | cut -f2 -d:  | cut -f2 -d" ")
 tgz: 
 		echo $(VERSION)
 #        # create documentation files
