@@ -1,5 +1,5 @@
 
-package CServer;
+package Police::Server;
 
 use strict;
 use warnings;
@@ -252,15 +252,15 @@ sub ScanClient {
 	my $sstart = time();
 
 	# repair XXX
-	my $handle = $self->RemoteCmd("cd /home/tpoder/police/distro/syspolice/bin && ./police-client", $reqfile);
+	my $handle = $self->RemoteCmd("police-client", $reqfile);
 
 	if (defined($handle)) { 
 		sleep(5);
 
 		# parse the XML input from the client
 		my $xmlhnd = new XML::Parser(Handlers => {
-   	             'Start' => \&CServer::HandleXmlBegin ,
-   	             'Char' => \&CServer::HandleXmlChar
+   	             'Start' => \&Police::Server::HandleXmlBegin ,
+   	             'Char' => \&Police::Server::HandleXmlChar
    	             });
 
 		my $res = $xmlhnd->parse($handle, ErrorContext => 3, Self => $self );
