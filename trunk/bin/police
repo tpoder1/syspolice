@@ -73,12 +73,17 @@ if (!defined($CMD) || $CMD eq "" || !%SYSTEMS || keys(%SYSTEMS) == 0) {
 my %SRV; 	# the hash where the server instances are stored 
 
 foreach my $system (glob("*")) {
-	next if ( ! -f  $system );
+	next if ( ! -f  $system ); 
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
 	$LOG->Progress("%s > loading the configuration... ", $system);
 	$LOG->Debug(10, "%s > loading the configuration", $system);
 	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG);
 	$LOG->Progress("loading the configuration... done\n", $system);
+	delete($SYSTEMS{$system});
+}
+
+foreach (keys %SYSTEMS) {
+	$LOG->Error("Configuration file not foud for %s in dir %s", $_, $OPTS{'c'});
 }
 
 foreach my $system (keys %SRV) {
