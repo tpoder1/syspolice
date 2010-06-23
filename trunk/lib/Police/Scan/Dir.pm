@@ -280,7 +280,7 @@ sub RecursiveScanDir {
     if ($dir eq "") {
         $dir = ".* *";
     } else {
-        $dir = "$dir/.* $dir/*";
+		$dir = "\"$dir/.*\" \"$dir/*\"";
     }
 
     while ($dir =~ /\/\//) {
