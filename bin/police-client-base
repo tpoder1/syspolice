@@ -7,7 +7,7 @@ use Police::Scan::Dir;
 use Police::Log;
 use XML::Parser;
 
-my $VERSION		= "2010-02-07.01";
+my $VERSION		= "2010-06-22.01";
 my $PVERSION	= "0.1";		# protocol version 
 
 my @PATHS;
@@ -25,7 +25,10 @@ sub PrintFileXML($$) {
 	while (my ($key, $val) = each %{$ref}) {
 		$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val));
 	}
-   printf "\t\t<file name=\"%s\" %s/>\n", $file, $atts;
+	# encode file name
+	$file =~ s/([^-_.~A-Za-z0-9\/ \+\:\@])/sprintf("%%%02X", ord($1))/seg;
+#	$file =~ s/([^-_.~A-Za-z0-9])/sprintf("%%%02X", ord($1))/seg;
+	printf "\t\t<file name=\"%s\" %s/>\n", $file, $atts;
 }
 
 # XML server parsing hooks

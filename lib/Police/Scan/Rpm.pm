@@ -150,7 +150,7 @@ sub ScanRpm($$$) {
 	# find the rpm file in a file system
 	my $lastname = undef;
 	foreach my $rpmdir ($self->{Config}->GetVal("basedir:rpm")) {
-		my $cmd = sprintf("find %s -name \"%s*.rpm\" -print", $rpmdir, $rpmname);
+		my $cmd = sprintf("find %s -name \"%s*.rpm\" -print 2>&1 ", $rpmdir, $rpmname);
 		open F1, "$cmd|";
 		while (my $file = <F1>) {
 			chomp $file;

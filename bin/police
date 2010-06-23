@@ -15,12 +15,11 @@ use Getopt::Std;
 #use Getopt;
 #use Archive::Tar;
 
-my $VERSION	= "2.1.2a";
-my $BASEDIR = "/home/tpoder/police/config";
+my $VERSION	= "2.1.3a";
 my %OPTS;
 $OPTS{'d'} = 0;
 $OPTS{'q'} = 0;
-$OPTS{'c'} = "/home/tpoder/police/config";
+$OPTS{'c'} = "/police/config";
 
 sub usage() {
 	printf "Police server, usage: \n\n";
@@ -30,7 +29,7 @@ sub usage() {
 	printf "    -e        : do not send the empty reports \n";
 	printf "    -q        : quite mode, do not show the progress bar  \n";
 	printf "    -d <num>  : debug level, default value is 0  \n";
-	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $BASEDIR;
+	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $OPTS{'c'};
 	printf "    -p <num>  : perform the paraell scanning, num identifies the number of process run in concurency. This option turns on the -q and -q option   \n\n";
 	printf "Actions:   \n";
 	printf "    client    : connect to the client and perform  the scan and the backup operation  \n";
@@ -78,7 +77,7 @@ foreach my $system (glob("*")) {
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
 	$LOG->Progress("%s > loading the configuration... ", $system);
 	$LOG->Debug(10, "%s > loading the configuration", $system);
-	$SRV{$system} = Police::Server->new($system, CfgDir => $BASEDIR, Log => $LOG);
+	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG);
 	$LOG->Progress("loading the configuration... done\n", $system);
 }
 
@@ -103,12 +102,5 @@ foreach my $system (keys %SRV) {
 }
 
 exit 0;
-
-
-
-#$server->ScanClient();
-#$server->ScanPackages();
-#$server->MkDiff();
-#$server->Download();
 
 1;

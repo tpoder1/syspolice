@@ -46,7 +46,10 @@ my %FTYPEFMT = (
 	'-' => [ 'UGMS5',   '%s:%s  %s %6sB %s' ],
 	'd' => [ 'UGM',     '%s:%s  %s' ],
 	'l' => [ 'L',       '---> %s' ],
-	'c' => [ 'UGMD',    '%s:%s %s' ]
+	'c' => [ 'UGMD',    '%s:%s %s' ],
+	's' => [ 'UGMS',   '%s:%s  %s %6sB' ],
+	'p' => [ 'UGMS',   '%s:%s  %s %6sB' ],
+	'b' => [ 'UGMD',   '%s:%s  %s %s' ]
 	);
 
 
@@ -151,10 +154,11 @@ sub HandleXmlBegin {
 	if ($path eq "client/scan/file") {
 		my $name = $attrs{"name"};
 		my %hash;
+#		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
 		$self->{ClientDb}->{$name} = { %attrs };
-		if ($attrs{'mode'} =~ /^d.+/) {
-			$self->{Log}->Progress("scanning the clinet... dir:%s", $name);
-		}
+#		if ($attrs{'mode'} =~ /^d.+/) {
+			$self->{Log}->Progress("scanning the clinet... path:%s", $name);
+#		}
 #		printf "XXX: %s | %s | %s \n", $path, $element, join(" : ", %attrs);
 	}
 }
@@ -176,7 +180,7 @@ sub HandleXmlChar {
 		}
 #		printf "YYY: %s | %s | %s \n", $path, $element, join(" : ", %attrs);
 		$self->{BackupReceived} += length($char);
-		$self->{Log}->Progress("retreiving backup data... (%sB)", HSize($self->{BackupReceived})); 
+		$self->{Log}->Progress("retreiving backup data... %sB", HSize($self->{BackupReceived})); 
 		print $handle $char;
 	}
 }
@@ -234,8 +238,9 @@ sub ScanClient {
 	printf REQF "\n";
 	printf REQF "<server>\n";
 	printf REQF "\t<paths>\n";
-	foreach  ($self->{Config}->GetVal("path")) {
-		printf REQF "\t\t<path>%s</path>\n", $_;
+	my @paths = $self->{Config}->GetVal("path");
+	foreach (@paths) {
+		printf REQF "\t\t<path>%s</path>\n", $_ if(defined($_) && $_ ne "");
 	}
 	printf REQF "\t</paths>\n";
 	printf REQF "\t<actions>\n";
@@ -252,7 +257,11 @@ sub ScanClient {
 	my $sstart = time();
 
 	# repair XXX
-	my $handle = $self->RemoteCmd("police-client", $reqfile);
+	my ($cmd) = $self->{Config}->GetVal("cmd:scan");
+	if (!defined($cmd) || $cmd eq "") {
+		$cmd = "police-client";
+	}
+	my $handle = $self->RemoteCmd($cmd, $reqfile);
 
 	if (defined($handle)) { 
 		sleep(5);
@@ -345,7 +354,7 @@ sub Report {
 		open $self->{RepHandle}, "> $self->{RepFile}";
 	}
 	my $handle = $self->{RepHandle};
-	printf $handle $str;
+	print $handle $str;
 }
 
 =head2 SendReport
@@ -384,14 +393,14 @@ sub SendReport {
 		my ($lines) = $self->{Config}->GetVal("email:lines"); 
 		my ($from) = $self->{Config}->GetVal("email:from"); 
 
-		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if ($subject eq "");
-		$lines = 1000 if ($lines eq "");
+		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if (!defined($subject) || $subject eq "");
+		$lines = 4000 if (!defined($lines) || $lines eq "");
 
 		foreach my $mail (@mails) {	
 			$self->{Log}->Progress("sending the report... recipient:%s", $mail);
 
 			my  $msg = Mail::Send->new(Subject => $subject, To => $mail);
-			$msg->set('From', $from) if ($from ne "");
+			$msg->set('From', $from) if (!defined($from) || $from ne "");
 			my $fd = $msg->open;
 
 			while (<$fs>) {
@@ -424,7 +433,7 @@ sub AddFlags {
 	my ($self, @args) = @_;
 
 	my $path = undef;
-	my %flags;
+	my %resflags;
 
 	# traverse all arguments
 	foreach my $arg (@args) {
@@ -433,14 +442,17 @@ sub AddFlags {
 			if (defined($2) && $2 ne "") {
 				$path = $2;
 			}
-			%flags = $self->GetFlags($1);
+			my %flags = $self->GetFlags($1);
+			while (my ($flag, $val) = each %flags) {
+				$resflags{$flag} = $val;
+			}
 		} else {
 			$path = $arg;
 		}
 	}
 
 	my $sflags = "";
-	while (my ($key, $val) = each %flags) {
+	while (my ($key, $val) = each %resflags) {
 		$sflags .= sprintf("%1s%1s", $val, $key);
 	}
 
@@ -448,6 +460,7 @@ sub AddFlags {
 
 	return ($sflags, $path);
 }
+
 
 # return hash with possitive flags set
 # @ flags - input string with flags inf ormat [+x+x...]
@@ -518,7 +531,6 @@ sub GetPathFlags {
 			($resflags) = $self->AddFlags($resflags, $flags);
 		}
 	}
-
 	my %flags = $self->GetFlags($resflags, '+');
 
 	return %flags;
@@ -637,7 +649,12 @@ sub MkDiff {
 		my $chkflags =  $FTYPEFMT{$type}->[0];
 		my %flags = ();
 
-# 		printf "XXXX $file: $chkflags %s\n", join('', %setflags);
+#		printf "\n\nXXXX %s: %s %s\n\n", $file, $chkflags, join('', %setflags);
+ 
+		if (!defined($chkflags)) {
+			$self->{Log}->Error("Unknown outuput format (\$FTYPEFMT) for '%s' (file: %s)", $type, $file);
+			next;
+		}
 
 		foreach (split(//, $chkflags)) {
 			if (defined($setflags{$_})) {
@@ -682,7 +699,7 @@ sub MkDiff {
 			next;
 		}
 		
-		$self->Report("$file  [%s]\n", sort join("", keys %flags));
+		$self->Report("%s  [%s]\n", $file, join("", sort keys %flags));
 		$self->Report("   C %s \n", DescribeFile(%{$client})) if (defined($client));
 		$self->Report("   S %s [%s]\n", DescribeFile(%{$server}), $server->{'package'}) if (defined($server));
 		$self->Report("\n");
