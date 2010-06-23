@@ -17,6 +17,7 @@ help:
 		@echo ""
 		@echo "   make help            - this help"
 		@echo "   make libs            - prepare library required by server "
+		@echo "   make client          - prepare the client binnary  "
 		@echo "   make install-client  - install client binary"
 		@echo "   make install-server  - install server libs and server binary"
 		@echo "   make tgz             - prepare and create instalation tarball"
@@ -28,11 +29,7 @@ libs:
 		# build libs
 		cd lib && perl Makefile.PL && make
 
-install-server: libs
-		cd lib && make install && cd ..
-		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police/client $(BINDIR)
-
-install-client: 
+client:
 		# create  the client executable by joining all libs into one file 
 		rm -f bin/police-client
 		echo '#!/usr/bin/perl -w' > bin/police-client
@@ -40,6 +37,12 @@ install-client:
 		cat lib/Police/Scan/Dir.pm | grep -v "use Police::" >> bin/police-client
 		cat bin/police-client-base | grep -v "use lib" | grep -v "use Police" >> bin/police-client
 		chmod +x bin/police-client
+
+install-server: libs
+		cd lib && make install && cd ..
+		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police/client $(BINDIR)
+
+install-client:  client
 		$(INSTALL) -o $(OWNER) -g $(GROUP) -m 755 bin/police-client $(BINDIR)
 
 clean:
