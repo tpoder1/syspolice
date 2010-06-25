@@ -154,7 +154,7 @@ sub HandleXmlBegin {
 	if ($path eq "client/scan/file") {
 		my $name = $attrs{"name"};
 		my %hash;
-#		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
+		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
 		$self->{ClientDb}->{$name} = { %attrs };
 #		if ($attrs{'mode'} =~ /^d.+/) {
 			$self->{Log}->Progress("scanning the clinet... path:%s", $name);
