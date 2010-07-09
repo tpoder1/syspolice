@@ -118,7 +118,7 @@ sub new {
 	my @paths = $class->{Config}->GetVal("path");
 	$class->{PathsDef} = [ @paths ];
 
-	$class->{BackupFile} = $class->{WorkDir}.'/backup.tgz.b64';
+	$class->{BackupFile} = $class->{WorkDir}.'/backup.tgz';
 	$class->{Config}->SetMacro("%B", $class->{BackupFile});
 
 	# tie some hash variables
@@ -184,7 +184,8 @@ sub HandleXmlChar {
 			open $handle, "> $self->{BackupFile}";
 			$self->{BackupHandle} = $handle;
 			$self->{BackupReceived} = 0;
-			$self->{Log}->Debug(10, "Creating the backup file '%s'", $self->{BackupFile}); 
+			$self->{Log}->Progress("scanning the clinet... done\n");
+			$self->{Log}->Debug(10, "creating the backup file '%s'", $self->{BackupFile}); 
 		} else {
 			$handle = $self->{BackupHandle};
 		}
@@ -297,7 +298,7 @@ sub ScanClient {
 		$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 		
 	}
-	$self->{Log}->Progress("scanning the clinet... done\n");
+	$self->{Log}->Progress("retreiving backup data... done\n"); 
 	
 }
 
@@ -323,33 +324,20 @@ sub ScanPackages {
 #	$scan{'dir'}->SetPathsDef($self->{Config}->GetVal("path"));
 #	$scan{'rpm'}->SetPathsDef($self->{Config}->GetVal("path"));
 
-	$self->{Log}->Progress("scnanning packages...");
-
 	my @dirpkgs = $self->{Config}->GetVal("pkg");
 	foreach (@dirpkgs) {
 		my ($type, $pkg) = split(/:/, $_);
 
-		$self->{Log}->Progress("scanning packages... %s:%s", $type, $pkg);
-		# rpm package type
-		if ($type eq "rpm") {
-			$scan{'rpm'}->ScanPkg($pkg);
-		# dir package type 
-		} elsif ($type eq "dir") {
-			$scan{'dir'}->ScanPkg($pkg);
-		} elsif ($type eq "tgz") {
-			$scan{'tgz'}->ScanPkg($pkg);
-		} elsif ($type eq "lst") {
-			$scan{'lst'}->ScanPkg($pkg);
-		} elsif ($type eq "xxxpkg") {
-
+		if (defined($scan{$type})) {
+			$self->{Log}->Progress("scanning packages... %s:%s", $type, $pkg);
+			$scan{$type}->ScanPkg($pkg);
 		# unknown package type 
 		} else {
 			$self->{Log}->Error("ERR unknown a package type %s:%s", $type, $pkg); 
 		}
+		$self->{Log}->Progress("scanning packages... done");
 #		$self->{Log}->Debug(10, "Conncet comand %s", $cmd); 
 	}
-
-	$self->{Log}->Progress("scanning packages... done\n");
 
 #	$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 	

@@ -64,16 +64,19 @@ sub ScanPkg {
 	my ($self, $pkg) = @_;
 
 	# find the propper path for the package  and perform scanning 
-	my ($tmpdir) = $self->{Config}->GetVal("tmpdir");
+	my ($tmpdir) = $self->{Config}->GetVal("dbdir");
 	
 	if (!defined($tmpdir) || $tmpdir eq "") {
-		$tmpdir = "/tmp/police";
+		$tmpdir = "/var/police";
 	}
-
 	
-	my ($pkgdir) = $self->{Config}->GetVal("basedir:tgz");
+	my $pkgfile = $pkg; 
+	# if the name of tha package start with / ignore the basedir:tgz option 	
+	if  ($pkg !~ /^\/.+/) {
+		my ($pkgdir) = $self->{Config}->GetVal("basedir:tgz");
+		$pkgfile .= $pkgdir."/".$pkg;
+	}
 	
-	my $pkgfile .= $pkgdir."/".$pkg;
 	if  ($pkg !~ /.tgz$/) {
 		$pkgfile .= ".tgz";
 	}
@@ -99,9 +102,12 @@ sub ScanPkg {
 		}
 		
 #		$self->{Log}->Progress("xtracting %s (tgz: %s)", $pkgfile, $pkg);
-		system("tar xzf $pkgfile");
+		system("tar -x --numeric-owner -z -f $pkgfile");
 		$self->ScanDir($tdir, "tgz: ".$pkg);
 		$self->{Log}->Debug(5, "Scanned tgz package %s for %s (tgz: %s)", $pkg, $self->{Config}->{SysName}, $pkgfile);
+		if ( -d $tdir ) {
+			system("rm -rf \"$tdir\"");
+		}
 	}
 }
 
