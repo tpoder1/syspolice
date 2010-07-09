@@ -399,9 +399,14 @@ Sacn directory/add the $self->files structure
 sub ScanPkg {
 	my ($self, $pkg) = @_;
 
+	my ($pkgdir) = $pkg; 
+	# if the name of tha package start with / ignore the basedir:dir option     
+	if  ($pkg !~ /^\/.+/) {
+		($pkgdir) = $self->{Config}->GetVal("basedir:dir");
+		$pkgdir .= "/".$pkg;
+	}
+
 	# find the propper path for the package  and perform scanning 
-	my ($pkgdir) = $self->{Config}->GetVal("basedir:dir");
-	$pkgdir .= "/".$pkg;
 	# test if the directory exists 
 	if ( ! -d $pkgdir ) {
 		$self->{Log}->Error("ERR the directory %s for package %s not found", $pkgdir, $pkg, $self->{HostId});
