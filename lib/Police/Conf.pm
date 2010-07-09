@@ -39,15 +39,53 @@ sub new {
 
 	# set base dir
 	$class->{BaseDir} = defined($params{BaseDir}) ? $params{BaseDir} : "";
+	$class->{SysName} = $file;
+	$class->{FileName} = $file;
 		
 	$class->{SetSections} = [ ('main') ];
 	$class->{Data} = {};	# data in format $class->{Data}->{SectionName} = [ @list of values ]
+
+	$class->{Macros}->{"%%"} = "%";		# define basic macros (%% is replaced by %%)
 
 	$class->load_config($file);
 
 	return $class;
 }
 
+=head SetMacro
+
+Set macro definition. The macro will be replaced by his value
+Examples: 
+   %S -> $systemName
+   %P -> $Path
+   ...
+
+=cut
+
+sub SetMacro {
+	my ($self, $macro, $value) = @_;
+
+	$self->{Macros}->{$macro} = $value;
+
+}
+
+
+=head ApplyMacro
+
+Expand macros in the string
+
+=cut
+
+sub ApplyMacro {
+	my ($self, $str) = @_;
+
+	while (my ($macro, $value) = each %{$self->{Macros}} ) {
+		$str =~ s/$macro/$value/g;
+	}
+	
+#	print "XXXX $str\n";
+	return $str;
+}
 
 =head2 Sections
 
@@ -112,7 +150,7 @@ sub load_config($$) {
 	my $fh;
 	
 	my $dirfile = $self->{BaseDir}."/".$file;
-	$self->{SysName} = $file;
+	$self->{FileName} = $file;
 
 	unless ( open $fh, "< $dirfile" ) {
 		$self->{Log}->Error("Can't open file %s. %s.", $dirfile, $!); 
@@ -180,6 +218,7 @@ sub load_config($$) {
 	close $fh;
 }
 
+
 =head2 GetVal
 
 Return list of values for key or undef if the key is not defined 
@@ -195,8 +234,17 @@ sub GetVal {
 			$val = $self->{Data}->{$_}->{$key};
 		}
 	}
-	
-	return defined($val) ? @{$val} : undef;
+
+	# apply macros 
+	if (defined($val)) {
+		foreach ( 0 .. @{$val} -  1) {
+			$$val[$_] = $self->ApplyMacro($$val[$_]);
+		}
+		return @{$val};
+	} else {
+		return undef;
+	}
+
 }
 
 1;
