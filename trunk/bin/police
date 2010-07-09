@@ -15,7 +15,7 @@ use Getopt::Std;
 #use Getopt;
 #use Archive::Tar;
 
-my $VERSION	= "2.1.3a";
+my $VERSION	= "2.1.4a";
 my %OPTS;
 $OPTS{'d'} = 0;
 $OPTS{'q'} = 0;
@@ -77,8 +77,8 @@ foreach my $system (glob("*")) {
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
 	$LOG->Progress("%s > loading the configuration... ", $system);
 	$LOG->Debug(10, "%s > loading the configuration", $system);
+	#$LOG->Progress("loading the configuration... \n", $system);
 	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG);
-	$LOG->Progress("loading the configuration... done\n", $system);
 	delete($SYSTEMS{$system});
 }
 
@@ -87,6 +87,7 @@ foreach (keys %SYSTEMS) {
 }
 
 foreach my $system (keys %SRV) {
+	next if (!defined($SRV{$system}));
 	if ($CMD eq "client") {
 		$SRV{$system}->ScanClient();
 	} elsif ($CMD eq "server") {
@@ -102,7 +103,7 @@ foreach my $system (keys %SRV) {
 	} elsif ($CMD eq "download") {
 		$SRV{$system}->Download();
 	} else {
-		$LOG->Error("Unknow command %s", $CMD);
+		$LOG->Error("Unknow command %s \n", $CMD);
 	}
 }
 

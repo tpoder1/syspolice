@@ -15,6 +15,8 @@ use Data::Dumper;
 use MLDBM qw (DB_File Storable);
 use XML::Parser;
 use Mail::Send;
+use MIME::Base64 qw(decode_base64 encode_base64);
+
 #use File::Glob ':globally';
 
 
@@ -92,9 +94,19 @@ sub new {
 	# set base dir
 	$class->{CfgDir} = defined($params{CfgDir}) ? $params{CfgDir} : "/etc/police/";
 
+	# load host config 
+	$class->{Config} = Police::Conf->new($hostid, BaseDir => $class->{CfgDir}, Log => $class->{Log} );	
+
+	$class->{Config}->SetMacro("%S", $hostid);
+
+	my ($wrkdir) = $class->{Config}->GetVal("dbdir");	
 	# sewt workdir, add hostid and create the directory if doesn't not exists
-	$class->{WorkDir} = defined($params{WorkDir}) ? $params{WorkDir} : "/tmp";
-	$class->{WorkDir} .= "/".$hostid;
+	if (!defined($wrkdir)) {
+		$class->{WorkDir} =  "/var/police/".$hostid;
+	} else {
+		$class->{WorkDir} = $wrkdir."/".$hostid;
+	}
+
 	if ( ! -d $class->{WorkDir} ) {
 		$class->{Log}->Log("Creating working directory %s", $class->{WorkDir});
 		if ( ! mkdir($class->{WorkDir}) ) {
@@ -103,13 +115,11 @@ sub new {
 		}
 	} 
 
-	# load host config 
-	$class->{Config} = Police::Conf->new($hostid, BaseDir => $class->{CfgDir}, Log => $class->{Log} );	
-
 	my @paths = $class->{Config}->GetVal("path");
 	$class->{PathsDef} = [ @paths ];
 
 	$class->{BackupFile} = $class->{WorkDir}.'/backup.tgz.b64';
+	$class->{Config}->SetMacro("%B", $class->{BackupFile});
 
 	# tie some hash variables
 	my (%client, %server, %diff);
@@ -179,9 +189,20 @@ sub HandleXmlChar {
 			$handle = $self->{BackupHandle};
 		}
 #		printf "YYY: %s | %s | %s \n", $path, $element, join(" : ", %attrs);
-		$self->{BackupReceived} += length($char);
+		$self->{BseackupReceived} += length($char);
 		$self->{Log}->Progress("retreiving backup data... %sB", HSize($self->{BackupReceived})); 
-		print $handle $char;
+
+		if (defined($self->{BackupBuffer})) {
+			$self->{BackupBuffer} .= $char;
+		} else {
+			$self->{BackupBuffer} = $char;
+		}
+
+	
+		if ($char eq "\n" && defined($self->{BackupBuffer})) {
+			print $handle decode_base64($self->{BackupBuffer});
+			$self->{BackupBuffer} = undef;
+		}
 	}
 }
 
@@ -368,10 +389,17 @@ Send the report to the users (if any)
 sub SendReport {
 	my ($self, $sendemail, $sendempty) = @_;
 
+
 	if (defined($self->{RepFile})) {
 		close $self->{RepHandle};
 		my $fs;
-		open $fs, "< $self->{RepFile}";
+
+		if ( -f $self->{RepFile} ) {
+			open $fs, "< $self->{RepFile}";
+		} else {
+			$self->{Log}->Error("can not open report file %s", $self->{RepFile});
+			return;
+		}
 
 		# the report to stdout is only required
 		if (!defined($sendemail) || !$sendemail) {
@@ -411,9 +439,9 @@ sub SendReport {
 				printf $fd "\n\n\n....\n\nWARNING: %d lines has been truncated.\n", -1 * $lines;
 			}
 			close $fd;
-			close $fs;
 		}
 
+		close $fs;
 		$self->{Log}->Progress("sending the report... done\n");
 	}	
 
