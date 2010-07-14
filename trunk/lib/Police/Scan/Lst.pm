@@ -170,5 +170,7 @@ sub ScanPkg {
 		$self->{Log}->Debug(5, "Scanned rpm package %s for %s (rpm: %s)", $pkg, $self->{Config}->{SysName}, $rpm);
 	}
 }
+
+
 1;
 

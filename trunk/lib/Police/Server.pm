@@ -820,5 +820,78 @@ sub Download {
 	close $handle;
 }
 
-1;
+=head2 GetConfig
 
+Print parsed config file - this output is used to install a new system
+
+=cut
+sub GetConfig {
+	my ($self) = @_;
+
+	printf "\n# config for %s\n", $self->{HostId};
+	printf "%-25s%s\n", "sysname", $self->{HostId};
+	my @atts = $self->{Config}->GetAtts();
+	foreach my $att (@atts) {
+		my @vals = $self->{Config}->GetVal($att);
+		foreach my $val (@vals) {
+			printf "%-25s%s\n", $att, $val;
+		}
+		printf "\n";
+	}
+	printf "\n# end config for %s\n\n", $self->{HostId};
+
+}
+
+=head2 PrepareInstall
+
+Prepare files nescesary for instaltion
+
+=cut
+sub PrepareInstall {
+	my ($self) = @_;
+	
+	# ksfile
+	# kstemplate
+	my ($ks) = $self->{Config}->GetVal("ksfile");
+	my ($kst) = $self->{Config}->GetVal("kstemplate");
+
+	if (!defined($kst) || $kst eq "" || ! -f $kst) {
+		$self->{Log}->Error("The option \"kstemplate\" not defined or file does not exists");
+		return;
+	}
+
+	# get package list 
+	my @pkgs = $self->{Config}->GetVal("pkg");
+
+	# preparing kickstart file 
+	$self->{Log}->Progress("Preparing kickstart file %s...", $ks);
+	open F1, "< $kst";
+	open F2, "> $ks";
+	while (<F1>) {
+		if (/{police:RpmPkgList}/) {
+			printf F2 "# lines included by \"police install\"\n"; 
+			foreach (@pkgs) {
+				my ($type, $pkg) = split(":");
+				if ($type eq "rpm") {
+					printf F2 "%s\n", $pkg; 
+				}
+			}
+			printf F2 "# end of lines included by \"police install\"\n"; 
+		} else {
+			print F2 $_;
+		}
+	}
+	close F1;
+	close F2;
+	
+	$self->{Log}->Progress("Preparing kickstart file %s... done", $ks);
+
+	# preparing dir and tgz packages 
+	:wq
+
+
+	
+}
+
+
+1;
