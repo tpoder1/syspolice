@@ -218,6 +218,28 @@ sub load_config($$) {
 	close $fh;
 }
 
+=head2 GetAtts
+
+Return list of attributes
+
+=cut
+
+sub GetAtts {
+	my ($self, $key) = @_;
+
+
+	my %atts;
+	foreach my $section ( @{$self->{SetSections}} ) {
+		foreach my $key (keys %{$self->{Data}->{$section}}) {
+			$atts{$key} = 1;
+		}
+	}
+
+	return keys %atts;
+
+}
+
+
 
 =head2 GetVal
 
