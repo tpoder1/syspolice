@@ -854,6 +854,7 @@ sub PrepareInstall {
 	# kstemplate
 	my ($ks) = $self->{Config}->GetVal("ksfile");
 	my ($kst) = $self->{Config}->GetVal("kstemplate");
+	my ($ksdata) = $self->{Config}->GetVal("ksdata");
 
 	if (!defined($kst) || $kst eq "" || ! -f $kst) {
 		$self->{Log}->Error("The option \"kstemplate\" not defined or file does not exists");
@@ -884,13 +885,49 @@ sub PrepareInstall {
 	close F1;
 	close F2;
 	
-	$self->{Log}->Progress("Preparing kickstart file %s... done", $ks);
+	$self->{Log}->Progress("Preparing kickstart file %s... done\n", $ks);
 
 	# preparing dir and tgz packages 
-	:wq
+	my ($tmpdir) = $self->{Config}->GetVal("dbdir");
 
+	my $tdir = $tmpdir."/_tmp.tar.$$.".time();
+	mkdir $tdir;
+	if (! chdir $tdir) {
+		$self->{Log}->Error("ERR can not change the directory to %s/%s", $tmpdir, $tdir);
+		return;
+	}
 
-	
+	if (!defined($ksdata) || $ksdata eq "") {
+		return;
+	}
+
+	my %tgz;
+	$tgz{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config=> $self->{Config});
+	$tgz{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config});
+	foreach (@pkgs) {
+		my ($type, $pkg) = split(":");
+		if (defined($tgz{$type})) {
+			my $cmd = $tgz{$type}->GetTgzCmd($pkg);
+			if (defined($cmd)) {
+				my $fcmd = sprintf("%s | tar xzvf - --numeric-owner  ", $cmd);
+				$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s...", $type, $pkg);
+				open F1, "$fcmd 2>&1 | "; 
+				while (<F1>) {
+					chomp;
+					$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s... %s", $type, $pkg, $_);
+				}
+				close F1;
+				$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s... done\n", $type, $pkg);
+			}
+		}
+	}
+
+	$self->{Log}->Progress("Creating output archive %s...", $ksdata);
+	my $packcmd = sprintf("tar czf %s -C %s .", $ksdata, $tdir);
+	system($packcmd); 
+	system("rm -rf \"$tdir\"");
+	$self->{Log}->Progress("Creating output archive %s... done\n", $ksdata);
+
 }
 
 

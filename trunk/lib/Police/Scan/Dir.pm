@@ -389,14 +389,12 @@ sub ScanDir {
 
 }
 
-=head2 ScanPkg
+=head2 GetFullPath
 
-Public interface:
-Sacn directory/add the $self->files structure
-	$pkg => package name
+Returns full path to tgz archive
 =cut
 
-sub ScanPkg {
+sub GetFullPath {
 	my ($self, $pkg) = @_;
 
 	my ($pkgdir) = $pkg; 
@@ -410,10 +408,44 @@ sub ScanPkg {
 	# test if the directory exists 
 	if ( ! -d $pkgdir ) {
 		$self->{Log}->Error("ERR the directory %s for package %s not found", $pkgdir, $pkg, $self->{HostId});
+		return undef;
 	} else {
+		return $pkgdir;
+	}
+}
+
+=head2 ScanPkg
+
+Public interface:
+Sacn directory/add the $self->files structure
+	$pkg => package name
+=cut
+
+sub ScanPkg {
+	my ($self, $pkg) = @_;
+
+	my ($pkgdir) = $self->GetFullPath($pkg); 
+
+	if ( defined($pkgdir) ) {
 		$self->ScanDir($pkgdir, "dir: ".$pkg);
 		$self->{Log}->Debug(5, "Scanned dir package %s for %s (dir: %s)", $pkg, $self->{Config}->{SysName}, $pkgdir);
 	}
+}
+
+=head2 GetTgzCmd
+
+Public interface:
+Returns command to create tzr gzip archive 
+=cut
+sub GetTgzCmd() {
+
+	my ($self, $pkg) = @_;
+	my $pkgdir = $self->GetFullPath($pkg);
+
+    if (defined($pkgdir)) {
+		return sprintf "tar -czf - --numeric-owner -C %s . ", $pkgdir;
+    } 
+	return undef;
 }
 
 1;
