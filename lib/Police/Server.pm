@@ -869,15 +869,24 @@ sub PrepareInstall {
 	open F1, "< $kst";
 	open F2, "> $ks";
 	while (<F1>) {
-		if (/{police:RpmPkgList}/) {
-			printf F2 "# lines included by \"police install\"\n"; 
-			foreach (@pkgs) {
-				my ($type, $pkg) = split(":");
-				if ($type eq "rpm") {
-					printf F2 "%s\n", $pkg; 
+		if (/(.*)%{(.*)}(.*)/) {
+			my ($pre, $key, $post) = ($1, $2, $3);
+			my @vals;
+			if ($2 eq "pkg:rpm") {
+				foreach (@pkgs) {
+					my ($type, $pkg) = split(":");
+					if ($type eq "rpm") {
+						push(@vals, $pkg);
+					}
 				}
+			} else {
+				@vals = $self->{Config}->GetVal($2);
 			}
-			printf F2 "# end of lines included by \"police install\"\n"; 
+
+			if (@vals > 0) {
+				printf F2 "%s%s%s", $pre, join("\n", @vals), $post;
+			}
+			
 		} else {
 			print F2 $_;
 		}
