@@ -52,6 +52,35 @@ sub new {
 	return $class;
 }
 
+=head2 GetFullPath
+
+Returns full path to tgz archive
+=cut
+
+sub GetFullPath {
+	my ($self, $pkg) = @_;
+
+	my $pkgfile = $pkg; 
+	# if the name of tha package start with / ignore the basedir:tgz option 	
+	if  ($pkg !~ /^\/.+/) {
+		my ($pkgdir) = $self->{Config}->GetVal("basedir:tgz");
+		$pkgfile .= $pkgdir."/".$pkg;
+	}
+	
+	if  ($pkg !~ /.tgz$/) {
+		$pkgfile .= ".tgz";
+	}
+
+	# test if the directory exists 
+	if ( ! -f $pkgfile ) {
+		$self->{Log}->Error("ERR the file %s for package %s not found", $pkgfile, $pkg, $self->{Config}->{SysName});
+		return undef;
+	} else {
+		return $pkgfile;
+	}
+}
+
+
 
 =head2 ScanPkg
 
@@ -70,44 +99,53 @@ sub ScanPkg {
 		$tmpdir = "/var/police";
 	}
 	
-	my $pkgfile = $pkg; 
-	# if the name of tha package start with / ignore the basedir:tgz option 	
-	if  ($pkg !~ /^\/.+/) {
-		my ($pkgdir) = $self->{Config}->GetVal("basedir:tgz");
-		$pkgfile .= $pkgdir."/".$pkg;
-	}
-	
-	if  ($pkg !~ /.tgz$/) {
-		$pkgfile .= ".tgz";
-	}
+	my $pkgfile = $self->GetFullPath($pkg); 
 
 	# test if the directory exists 
-	if ( ! -f $pkgfile ) {
-		$self->{Log}->Error("ERR the file %s for package %s not found", $pkgfile, $pkg, $self->{Config}->{SysName});
-	} else {
-		# unpack tgz file and scan 
+	if ( ! defined($pkgfile) ) {
+		return;
+	}
 
-		# check if the working directory exists a switch to them 
-		mkdir $tmpdir if ( ! -d $tmpdir );
-		if (! chdir $tmpdir ) {
-			$self->{Log}->Error("ERR can not change the directory to %s", $tmpdir);
-			return ; 
-		}
+	# unpack tgz file and scan 
 
-		my $tdir = $tmpdir."/_tmp.tar.$$.".time();
-		mkdir $tdir;
-		if (! chdir $tdir) {
-			$self->{Log}->Error("ERR can not change the directory to %s/%s", $tmpdir, $tdir);
-			return;
-		}
+	# check if the working directory exists a switch to them 
+	mkdir $tmpdir if ( ! -d $tmpdir );
+	if (! chdir $tmpdir ) {
+		$self->{Log}->Error("ERR can not change the directory to %s", $tmpdir);
+		return ; 
+	}
+
+	my $tdir = $tmpdir."/_tmp.tar.$$.".time();
+	mkdir $tdir;
+	if (! chdir $tdir) {
+		$self->{Log}->Error("ERR can not change the directory to %s/%s", $tmpdir, $tdir);
+		return;
+	}
 		
-#		$self->{Log}->Progress("xtracting %s (tgz: %s)", $pkgfile, $pkg);
-		system("tar -x --numeric-owner -z -f $pkgfile");
-		$self->ScanDir($tdir, "tgz: ".$pkg);
-		$self->{Log}->Debug(5, "Scanned tgz package %s for %s (tgz: %s)", $pkg, $self->{Config}->{SysName}, $pkgfile);
-		if ( -d $tdir ) {
-			system("rm -rf \"$tdir\"");
-		}
+#	$self->{Log}->Progress("xtracting %s (tgz: %s)", $pkgfile, $pkg);
+	system("tar -x --numeric-owner -z -f $pkgfile");
+	$self->ScanDir($tdir, "tgz: ".$pkg);
+	$self->{Log}->Debug(5, "Scanned tgz package %s for %s (tgz: %s)", $pkg, $self->{Config}->{SysName}, $pkgfile);
+	if ( -d $tdir ) {
+		system("rm -rf \"$tdir\"");
+	}
+}
+
+=head2 GetTgzCmd
+
+Public interface:
+Returns command to create tzr gzip archive 
+	$pkg => package name
+=cut
+sub GetTgzCmd() {
+
+	my ($self, $pkg) = @_;
+	my $pkgfile = $self->GetFullPath($pkg); 
+
+	if (defined($pkgfile)) {
+		return sprintf "cat < %s", $pkgfile;
+	} else {
+		return undef;
 	}
 }
 

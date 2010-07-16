@@ -38,7 +38,7 @@ sub usage() {
 	printf "    check     : client + server + diff action blended into one command   \n";
 	printf "    download  : download differend files from the client side   \n\n";
 	printf "    config    : show options taken from the config file(s)   \n\n";
-	printf "    install   : prepare data for system installation   \n\n";
+	printf "    kdinstall  : prepare data for system kickstart installation   \n\n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
 	printf "Version: %s\n", $VERSION;
 
@@ -104,7 +104,7 @@ foreach my $system (keys %SRV) {
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "download") {
 		$SRV{$system}->Download();
-	} elsif ($CMD eq "install") {
+	} elsif ($CMD eq "ksinstall") {
 		$SRV{$system}->PrepareInstall();
 	} elsif ($CMD eq "config") {
 		$SRV{$system}->GetConfig();
