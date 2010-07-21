@@ -208,7 +208,7 @@ sub ScanRpm($$$) {
 			delete($attrs{'size'});
 			delete($attrs{'mtime'});
 		}
-		$attrs{'package'}        = "rpm: ".basename($rpmname);
+		$attrs{'package'}        = "rpm:".basename($rpmname);
 #		$attrs{'packagetype'}    = "rpm";
 #		$attrs{'packagename'}    = basename($lastname);
 		$self->{FilesRef}->{$filename} = { %attrs };

@@ -940,4 +940,48 @@ sub PrepareInstall {
 }
 
 
+=head2 MakeLst
+
+Prepare lst file based on diff from the prevous run 
+
+=cut
+sub GetLst {
+	my ($self) = @_;
+
+	my $flist = $self->InitList();
+
+	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+		if (defined($diff->{Client})) {
+			printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
+		}
+	}
+
+	if (!$self->EditList()) {
+		return 0;
+	}
+
+	open FLIST, $self->{EdFile};
+	open FOUT, ">filelist.xml";
+
+	print FOUT "<listfile>\n";
+
+	while (my $file = <FLIST>) {
+		chomp $file;	
+		my $diff = $self->{'DiffDb'}->{$file};
+
+    	my $atts = "";
+		while (my ($key, $val) = each %{$diff->{Client}}) {
+			$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val) && $key ne "name");
+		}
+		# encode file name
+		$file =~ s/([^-_.~A-Za-z0-9\/ \+\:\@])/sprintf("%%%02X", ord($1))/seg;
+	    printf FOUT "\t<file name=\"%s\" %s/>\n", $file, $atts;
+	}
+	print FOUT "</listfile>\n";
+	close FOUT;
+	close FLIST;
+
+}
+
+
 1;
