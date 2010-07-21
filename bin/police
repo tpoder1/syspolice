@@ -38,7 +38,8 @@ sub usage() {
 	printf "    check     : client + server + diff action blended into one command   \n";
 	printf "    download  : download differend files from the client side   \n\n";
 	printf "    config    : show options taken from the config file(s)   \n\n";
-	printf "    kdinstall  : prepare data for system kickstart installation   \n\n";
+	printf "    kdinstall : prepare data for system kickstart installation   \n\n";
+	printf "    getlst    : create .lst file based on the diff from the previous run  \n\n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
 	printf "Version: %s\n", $VERSION;
 
@@ -108,6 +109,8 @@ foreach my $system (keys %SRV) {
 		$SRV{$system}->PrepareInstall();
 	} elsif ($CMD eq "config") {
 		$SRV{$system}->GetConfig();
+	} elsif ($CMD eq "getlst") {
+		$SRV{$system}->GetLst();
 	} else {
 		$LOG->Error("Unknow command %s \n", $CMD);
 	}

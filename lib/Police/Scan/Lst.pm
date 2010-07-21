@@ -7,10 +7,8 @@ use POSIX qw(strftime setsid);
 use Data::Dumper;
 use File::Basename;
 use Fcntl ':mode';
-use Digest::MD5  qw(md5 md5_hex md5_base64);
-#use File::Glob ':glob';
-use File::Temp qw(tempfile);
 use Police::Log;
+use XML::Parser;
 
 
 =head1 NAME
@@ -66,7 +64,37 @@ sub new {
 }
 
 
-=head2 ScanRpm
+##########################################################
+# XML Parser Handlers                                    #
+##########################################################
+# XML server parsing hooks
+sub HandleXmlBegin {
+	my ($expat, $element, %attrs ) = @_;
+	my $path = join('/', (@{$expat->{'Context'}}, $element));
+	my $self = $expat->{'Self'};
+
+	if ($path eq "listfile/file") {
+		my $name = $attrs{"name"};
+		my %hash;
+		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
+
+		$attrs{"package"} = "lst:".$self->{'Package'};
+		$self->{FilesRef}->{$name} = { %attrs };
+		$self->{FilesRef}->{$name} = { %attrs };
+
+		if (defined($self->{ScanHook})) {
+			$self->{ScanHook}->($self, $name, \%attrs);
+		}
+		if (defined($self->{FilesRef})) {
+			$self->{FilesRef}->{$name} = \%attrs;
+		}
+	}
+
+	return 1;
+}
+
+
+=head2 ScanLst
 
 Compare two RPM names an return result - election is based on the version number
 # Try to find a rpm file specified by the name in @RPMDB
@@ -74,86 +102,15 @@ Compare two RPM names an return result - election is based on the version number
 # if any files didn't found prit error
 
 =cut
-sub ScanRpm($$$) {
-	my ($self, $rpmname) = @_;
+sub ScanLst($$$) {
+	my ($self, $lstname) = @_;
 
-	# find the rpm file in a file system
-	my $lastname = undef;
-	foreach my $rpmdir ($self->{Config}->GetVal("basedir:rpm")) {
-		my $cmd = sprintf("find %s -name \"%s*.rpm\" -print", $rpmdir, $rpmname);
-		open F1, "$cmd|";
-		while (my $file = <F1>) {
-			chomp $file;
+	# parse the XML input from the client
+	my $xmlhnd = new XML::Parser(Handlers => {
+		'Start' => \&Police::Scan::Lst::HandleXmlBegin ,
+	});
 
-			my $found = 0;
-
-			#check if current architecture is in supported achritectures
-			foreach ($self->{Config}->GetVal("arch")) {
-				$found = 1 if ($file =~ /.+\.$_\.rpm/);
-			}
-			if ($found) {
-				$lastname = $file if (!defined($lastname) || CmpRpmName($lastname, $file, $self->{Config}->GetVal("arch")) == -1);
-			}
-		}
-		close F1;
-	}
-
-	# check if we found any file
-	if (!defined($lastname) || $lastname eq "") {
-		$self->{Log}->Error("Neither RPM package %s found in %s.", $rpmname, join(", ", $self->{Config}->GetVal("basedir:rpm")));
-		return 0;
-	}
-
-	# create a file list from the file
-
-	my %rpmatts = ( 'FILESIZES' => 'size',  'FILEMODES:perms' => 'mode',
-					'FILEMTIMES' => 'mtime',  'FILEMD5S' => 'md5', 'FILEUSERNAME' => 'user',
-					'FILEGROUPNAME' => 'group', 'FILELINKTOS' => 'symlink' );
-	my @attarr = keys(%rpmatts);
-
-	my $tags = "%{FILENAMES}|";
-	foreach (@attarr) {
-		$tags .= sprintf("%%{%s}|", $_);
-	}
-	$self->{Log}->Debug(10, ("Loading files for from %s for %s", $lastname, $rpmname ));
-	my $cmd = sprintf("rpm -q --nosignature --queryformat \"[%s\n]\" -p %s ", $tags, $lastname);
-
-	open F1, "$cmd|";
-	while (<F1>) {
-		chomp;
-		my ($filename, @val) = split(/\|/, $_);
-		my %attrs;
-
-		foreach my $x (0 .. @attarr - 1) {
-#           printf "%s -> %s \n", $rpmatts[$x],  $val[$x - 1];
-			my $att = $attarr[$x];
-			my $att2 = $rpmatts{$att};
-			$attrs{$att2} = $val[$x - 0] if (defined($val[$x - 0])) && $val[$x - 0] ne "";
-		}
-		if (defined($attrs{'symlink'})) {
-			delete($attrs{'md5'});
-#               delete($$f->{'mode'});
-			delete($attrs{'user'});
-			delete($attrs{'group'});
-			delete($attrs{'size'});
-			delete($attrs{'mtime'});
-		}
-		$attrs{'package'}        = "rpm: ".basename($rpmname);
-#		$attrs{'packagetype'}    = "rpm";
-#		$attrs{'packagename'}    = basename($lastname);
-		$self->{FilesRef}->{$filename} = { %attrs };
-
-		if (defined($self->{ScanHook})) {
-			$self->{ScanHook}->($self, $filename, \%attrs);
-		}
-		if (defined($self->{FilesRef})) {
-			$self->{FilesRef}->{$filename} = \%attrs;
-		}
-	}
-
-	close F1;
-
-	return $lastname;
+	my $res = $xmlhnd->parsefile($lstname, ErrorContext => 3, Self => $self );
 }
 
 =head2 ScanPkg
@@ -166,8 +123,11 @@ Sacn directory/add the $self->files structure
 sub ScanPkg {
 	my ($self, $pkg) = @_;
 
-	if (my $rpm = $self->ScanRpm($pkg)) {
-		$self->{Log}->Debug(5, "Scanned rpm package %s for %s (rpm: %s)", $pkg, $self->{Config}->{SysName}, $rpm);
+	my $lstname = $pkg;
+	$self->{Package} = $pkg;
+
+	if ($self->ScanLst($lstname)) {
+		$self->{Log}->Debug(5, "Scanned lst package %s for %s (file: %s)", $pkg, $self->{Config}->{SysName}, $lstname);
 	}
 }
 
