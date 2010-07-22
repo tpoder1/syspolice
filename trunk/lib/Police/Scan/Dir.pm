@@ -427,8 +427,8 @@ sub ScanPkg {
 	my ($pkgdir) = $self->GetFullPath($pkg); 
 
 	if ( defined($pkgdir) ) {
-		$self->ScanDir($pkgdir, "dir: ".$pkg);
-		$self->{Log}->Debug(5, "Scanned dir package %s for %s (dir: %s)", $pkg, $self->{Config}->{SysName}, $pkgdir);
+		$self->ScanDir($pkgdir, "dir:".$pkg);
+		$self->{Log}->Debug(5, "Scanned dir package %s for %s (dir:%s)", $pkg, $self->{Config}->{SysName}, $pkgdir);
 	}
 }
 

@@ -579,6 +579,11 @@ sub HSize($) {
 sub DescribeFile {
 	my (%at) = @_;
 
+	# missing description 
+	if (!defined($at{'mode'}) || defined($at{'nonexists'})) {
+		return "missing";
+	}	
+
 	my $type = substr($at{'mode'}, 0, 1);
 	my $str;
 
@@ -658,6 +663,10 @@ sub MkDiff {
 
 		my $client =  $diff->{Client} if (defined($diff->{Client}));
 		my $server =  $diff->{Server} if (defined($diff->{Server}));
+		if (defined ($diff->{Server}->{'nonexists'})) {		
+			$stats{'same'}++;
+			next;	
+		}
 
 		# determine file type, load flags and dterine flags to check
 		my $type = substr(defined($server) ? $server->{'mode'} : $client->{'mode'} , 0, 1);
@@ -951,9 +960,7 @@ sub GetLst {
 	my $flist = $self->InitList();
 
 	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
-		if (defined($diff->{Client})) {
-			printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
-		}
+		printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 	}
 
 	if (!$self->EditList()) {
@@ -970,9 +977,15 @@ sub GetLst {
 		my $diff = $self->{'DiffDb'}->{$file};
 
     	my $atts = "";
-		while (my ($key, $val) = each %{$diff->{Client}}) {
-			$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val) && $key ne "name");
+		if (defined($diff->{Client})) {
+			while (my ($key, $val) = each %{$diff->{Client}}) {
+				$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val) && $key ne "name");
+			} 
+		} else {
+			$atts = "nonexists=\"1\"";
 		}
+		
+	
 		# encode file name
 		$file =~ s/([^-_.~A-Za-z0-9\/ \+\:\@])/sprintf("%%%02X", ord($1))/seg;
 	    printf FOUT "\t<file name=\"%s\" %s/>\n", $file, $atts;
