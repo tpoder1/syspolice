@@ -113,6 +113,36 @@ sub ScanLst($$$) {
 	my $res = $xmlhnd->parsefile($lstname, ErrorContext => 3, Self => $self );
 }
 
+=head2 GetFullPath
+
+Returns full path to tgz archive
+=cut
+
+sub GetFullPath {
+	my ($self, $pkg) = @_;
+
+	my $pkgpath = $pkg;
+	# if the name of tha package start with / ignore the basedir:tgz option     
+	if  ($pkg !~ /^\/.+/) {
+		my ($pkgdir) = $self->{Config}->GetVal("basedir:lst");
+		$pkgpath = $pkgdir."/".$pkg;
+	}
+
+	# test if a directory or a file exists 
+	if ( ! -f $pkgpath && ! -d $pkgpath ) {
+		$self->{Log}->Error("ERR the file or directory %s for package %s not found", $pkgpath, $pkg, $self->{Config}->{SysName});
+		return undef;
+	} else {
+		if ( -d $pkgpath ) {
+			return sort glob("$pkgpath/*.xml");
+		} else {
+			return $pkgpath;
+		}
+	}
+	return undef;
+}
+
+
 =head2 ScanPkg
 
 Public interface:
@@ -123,11 +153,15 @@ Sacn directory/add the $self->files structure
 sub ScanPkg {
 	my ($self, $pkg) = @_;
 
-	my $lstname = $pkg;
 	$self->{Package} = $pkg;
 
-	if ($self->ScanLst($lstname)) {
-		$self->{Log}->Debug(5, "Scanned lst package %s for %s (file: %s)", $pkg, $self->{Config}->{SysName}, $lstname);
+	my @files = $self->GetFullPath($pkg);
+	if (@files > 0 ) { 
+		foreach (@files) {
+			if (defined($_) && $self->ScanLst($_)) {
+				$self->{Log}->Debug(5, "Scanned lst package %s for %s (file: %s)", $pkg, $self->{Config}->{SysName}, $_);
+			}
+		}
 	}
 }
 
