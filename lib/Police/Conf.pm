@@ -45,7 +45,7 @@ sub new {
 	$class->{SetSections} = [ ('main') ];
 	$class->{Data} = {};	# data in format $class->{Data}->{SectionName} = [ @list of values ]
 
-	$class->{Macros}->{"%%"} = "%";		# define basic macros (%% is replaced by %%)
+	$class->{Recursion} = 0;
 
 	$class->load_config($file);
 
@@ -56,17 +56,23 @@ sub new {
 
 Set macro definition. The macro will be replaced by his value
 Examples: 
-   %S -> $systemName
-   %P -> $Path
+   %{system} -> $systemName
+   %{path} -> $Path
    ...
 
 =cut
 
 sub SetMacro {
-	my ($self, $macro, $value) = @_;
+	my ($self, $key, @val) = @_;
 
-	$self->{Macros}->{$macro} = $value;
-
+	foreach my $section (@{$self->{SetSections}}) {
+		# add values into %CONFIG
+		if (!defined($self->{Data}->{$section}->{$key})) {
+			$self->{Data}->{$section}->{$key} = [ @val ];
+		} else {
+			push(@{$self->{Data}->{$section}->{$key}},  @val);
+		}
+	}
 }
 
 
@@ -79,11 +85,23 @@ Expand macros in the string
 sub ApplyMacro {
 	my ($self, $str) = @_;
 
-	while (my ($macro, $value) = each %{$self->{Macros}} ) {
-		$str =~ s/$macro/$value/g;
+	$self->{Recursion}++;
+
+	if ($self->{Recursion} > 30) {
+		$self->{Log}->Error("Max recursion count (30) reached for %s ", $str);
+		$self->{Recursion}--;
+		return "";
 	}
-	
-#	print "XXXX $str\n";
+
+	# parse the string and search for macros ( %{value} )
+	while ($str =~ /(.*)\%{(.+)}(.+)/) {
+		my ($newval) = $self->GetVal($2);
+		$newval = "" if (!defined($newval));
+
+		$str = $1.$newval.$3;
+	} 
+
+	$self->{Recursion}--;
 	return $str;
 }
 
@@ -96,7 +114,7 @@ Set sections name to acces through GetVal function
 sub Sections {
 	my ($self, @sections) = @_;
 
-	$self->{Sections} = [ @sections ];
+	$self->{SetSections} = [ @sections ];
 }
 
 # split values with accept quotes (eg line fld1, "fld \"fld5" fld7 produces array ("fld1", "fld \fld5", "fld7")

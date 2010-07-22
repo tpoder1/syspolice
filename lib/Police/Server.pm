@@ -97,7 +97,7 @@ sub new {
 	# load host config 
 	$class->{Config} = Police::Conf->new($hostid, BaseDir => $class->{CfgDir}, Log => $class->{Log} );	
 
-	$class->{Config}->SetMacro("%S", $hostid);
+	$class->{Config}->SetMacro("system", $hostid);
 
 	my ($wrkdir) = $class->{Config}->GetVal("dbdir");	
 	# sewt workdir, add hostid and create the directory if doesn't not exists
@@ -119,7 +119,7 @@ sub new {
 	$class->{PathsDef} = [ @paths ];
 
 	$class->{BackupFile} = $class->{WorkDir}.'/backup.tgz';
-	$class->{Config}->SetMacro("%B", $class->{BackupFile});
+	$class->{Config}->SetMacro("backupfile", $class->{BackupFile});
 
 	# tie some hash variables
 	my (%client, %server, %diff);
@@ -838,7 +838,6 @@ sub GetConfig {
 	my ($self) = @_;
 
 	printf "\n# config for %s\n", $self->{HostId};
-	printf "%-25s%s\n", "sysname", $self->{HostId};
 	my @atts = $self->{Config}->GetAtts();
 	foreach my $att (@atts) {
 		my @vals = $self->{Config}->GetVal($att);
