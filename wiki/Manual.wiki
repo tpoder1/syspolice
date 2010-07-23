@@ -1,0 +1,347 @@
+#summary SysPolice system - the base documentation
+
+= Content =
+<wiki:toc max_depth="3" />
+
+= Preface =
+
+SysPolice is the system for securing and managing Unix based servers. The main idea is periodically checking content of the file system on a client side (eg. web server, mail server) and compare this content with content which should be on the client side. If content on the client side is valid then nothing happens, however the content is different an administrator of the system is alerted. Alert could be done by many ways - eg. an email, nagios, zabbix. 
+
+System checking is not only one thing which SysPolice can do. The data base also provide many other features to make an administrator's life easier. 
+
+Basic SysPolice features are follow:
+ * Scan local file system on the client side and compare the file list with the list provided by the server. 
+ * System compare changed files on the client system and alerts user, until changes are confirmed by user or administrator. 
+ * Provide output for an administrator with state of the system. 
+ * Perform backups of the local configuration files. The list of files to backup are defined on the server's config file. 
+ * On the server side accept differed forms of package source (.rpm, .tgz. directory). The system allows extend to any type of the package type. 
+ * Provide environment for automatized installations through kickstart.
+ * Internal modular and open architecture which allows extend the system (web interface, monitoring system, ...).
+ * The client side is simple as much as possible. That means that installation on the client do not require any special packages, libraries, tools. 
+ * Server communicates with the clients through secured SSH protocol. Root access is not nessesary on client system. 
+
+The follow image shows basic finctionality: 
+
+<img src="http://syspolice.googlecode.com/svn/wiki/img01.gif"/>
+
+1. SysPolice server reads config file and connect to the client. Client run process which check files on the client side. Determine basic informations (permisions, modify time, md5 checksum, ...) 
+
+2. Client send the file list back to the server.
+
+3. Server compare results from the client and compare with configured package database, internal database. If there is a reason server send differences to an administrator. 
+
+4. Depends on the result administrator can decide what he will do. He could inspect client (eg. apply updates), update client's configuration on the server. Another way how he coult proceed - accept the changes through command on the server. The last possibility is avalaible only if the *historycheck* mode is enabled. 
+ 
+= Client side =
+The client side is the most sensitive part of the system. All client system is represented by *one* binary file, which do all important things. The client works with configuration data enquired from the server, perform file system scanning and 
+returns output of this scanning back to the server. 
+
+= Server side =
+The server performs almost all tasks provided by SysPolice. All necessarily information are stored on server side. The SysPolice could be also used for some tasks regarding software distribution and client system maintenance. This section describes in detail the server side organization. 
+
+== Directory structure ==
+SysPolice is on the server organized into directory structure. The structure contains client configurations, package repository and status information. 
+
+{{{
+/<sysfink root>                         - basic police system directory
+  + config/                             - configurations for systems
+      + include/                        - global configurations which are included from the system configs
+         + general.conf
+         + base.lst
+         + application1.lst
+      + system1
+      + system2
+      + system3
+      + ...
+  + dirpkg/                              - basic directory with dir based packages
+      + myapp1/
+      + myapp2.tar.gz
+  + rpmpkg/                              - basic directory with rpm based packages
+     + i386/
+        + CentOS5/
+            base/
+            updates/
+            rpmforge/
+            ...
+     + amd64/
+        + CentOS5/
+            base/
+            updates/
+            rpmforge/
+            ...
+       ...
+  ....
+}}}
+
+== Config files syntax ==
+
+The basic path for config files is */<sysfink root>/config* (typically */home/sysfink/config*). In this directory config file or config directory for each client system have to be placed. Each system is defined by separated configuration file or set of configuration files. The files using a simple .ini style syntax. The config file is divided into several sections. Data inf config file could be also used by other systems  like nagios, zabbix, backup system, .... 
+
+Some section could have a special part with a time condition. This condition tells when the section is active (hourly, weakly, daily, monthly). 
+
+The example config file is shown. 
+
+{{{
+# cat /home/sfink/config/webserver.foo.bar.cz
+
+[general]
+hostname    = webserver.foo.bar.cz
+arch        = i386
+sendmail    = admin@foo.vutbr.cz
+
+[check]
+rpmpkg      = /%r/rpmdir/
+dirpkg      = /%r/pkgdir/
+
+[check, daily]
+exclude     = /var/log /var/run /home/
+include     = /home/sfink
+path        = [-M]/var/run/
+backup      = /etc/sysconfig/network
+
+[check, hourly]
+exclude     = /
+include     = /usr/sbin/sshd 
+}}}
+
+Each section allows to use different configuration options. Basic options are described above:
+  
+|| *section* || *option*       || *example*                || *description*   || 
+|| *         || use            || includes/global.lst    || load configuration from the file and place into current position ||
+|| general   || hostname       || webserver.foo.vutbr.cz   || Client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
+|| general   || arch           || i386 i686 noarch                    || List if client architectures supported by client. ||
+|| general   || sendmail       || admin@foo.vutbr.cz       || List of administrators address. This address will be used to send reports. ||
+|| check     || rpmdir         || /home/sfink/rpmdir /var/rpm    || paths to .rpm repositories ||
+|| check     || pkgdir         || /home/sfink/pkgdir    || paths to .dir repositories ||
+|| check     || rpm            || samba-client    || name of .rpm package ||
+|| check     || dir            || myconf    || name of .dir package ||
+|| check     || list           || lists/files.lst    || name of file where list of client files are placed ||
+|| check     || path           || /var/run    || see section paths ||
+|| check     || exclude        || /var/run    || see section paths ||
+|| check     || include        || /var/run    || see section paths ||
+|| check     || backup         || /var/run    || see section paths ||
+|| check     || history        || 0           || see section history sums ||
+
+
+The special use *use* can by used to include content of the the other file. The manner how the file is included
+depends the format of the included file. If the file is divided into sections the sections are placed into the place
+where the directive is called. If the included file does not contain section all options are placed into the section 
+where directive is called. 
+
+In many cases the list of values is used. For example the *rpm* option can define multiple packages. In this case
+we can write more values on single line or we can split values to multiple lines. 
+
+*Example:*
+
+{{{
+[check]
+rpm   samba-client samba-server samba-common
+}}}
+
+is equivalent with:
+
+{{{
+[check]
+rpm   samba-client 
+rpm   samba-server
+rpm   saba-common
+}}}
+
+
+== Paths definition ==
+There are several options in check section which require special attention. The name 
+of the options are path and equivalent aliases - include, exclude, backup. This 
+options describes which attributes should be checked and reported. 
+
+The level of the file checking can be affected by the path option. Through this option we can 
+define how to check a file or a directory. Many option could be switched off or switched on 
+by this directive. See follow example: 
+
+{{{
+01: exclude   /home* /var/log/**
+02: include   /home/cfg1/*
+03: path      [-M5]/var/run/test
+04: backup    /etc/sysconfig/network 
+}}}  
+
+In this example directories /home and /var/log/ will be excluded from the checking. Any 
+changes in those directories will not be reported to an administrator. Although 
+the /home directory will not be checked, the content of dir /home/cfg1/ will 
+be included into check report. In this directory all available options 
+will be checked (size, mtime, ...).  Line 03 shows how to define some special 
+options. In this case all options will be checked beyond md5 checksum 
+and modification time. 
+     
+The path can have more complex options. The syntax is follow: 
+
+{{{
+path  [<flags>]<pattern>
+}}}
+
+Each option could be prefixed by + or - flag. Sign '+' enable the option and '-' disable the option.
+
+|| *option* || *meaning* ||
+|| M || check mtime ||
+|| 5 || check file md5 sum ||
+|| S || check file size ||
+|| H || check hard links number ||
+|| L || check symlink path ||
+|| U || check user owner ||
+|| G || check group owner ||
+|| D || check major and minor device number ||
+|| B || do backup this file or directory ||
+
+One directory can have multiple options. All this options are evaluated in defined order and last used value is applied.  
+
+*Example 1:* 
+{{{
+path  [-M5SHLUGD]/usr/*
+path  [+UG]/usr/dir1/*
+}}}
+
+the result on /usr/dir1 is :
+{{{
+[-M5SHLUGD] & [+UG] = *[-M-5-S-H-L+U+G-D]*
+}}}
+
+*Example 2:*
+{{{
+exclude   [+5S]/usr/dir2/*
+}}}
+
+have the same result as:
+{{{
+exclude   /usr/dir2/*
+path      [+5S]/usr/dir2/*
+}}}
+
+so the finnal result is:
+{{{
+[-M5SHLUGD] & [+5S] = [-M+5+S-H-L-U-G-D] = *[-M+5S-HLUGD]*
+}}}     
+
+== Operations ==
+
+TODO
+ 
+ * File system check (CMD police client on the client side) 
+  * [CLIENT] Download system configuration from the server.
+  * [SERVER] Check hostname and address. If those items are correct provide configuration data.
+  * [CLIENT] Traverse file system. Obtain detailed information regarding to files (size, right, ownership, cheksum) with respect to scan definition provide by server. 
+  * [CLIENT] Send the result of the scan to the server.
+  * [SERVER] Accept data from the client and compare it with expected list.
+  * [SERVER] Create output with differences. Alternatively send difference through an email, and update status data for monitoring system.
+ * Configuration file backup
+  * [CLIENT] Download system configuration from the server.
+  * [SERVER] Check hostname and adders. If those items are correct provide configuration data.
+  * [CLIENT] Traverse file system and take content of files which should be backuped.
+  * [CLIENT] Send data to the server.
+  * [SERVER] Process data received from the client, compare backuped data with the previous one. 
+  * [SERVER] Send data to administrator if it is required.
+ * Software distribution 
+  * [SERVER] TODO: tool which helps distribute new software on the clients.
+ * Software download 
+  * [CLIENT] TODO: tool to synchronize/update client in accordance with the server.
+ * Prepare data for installation
+  * [SERVER] Depend on the request prepare configuration file for the installation through kickstart.
+ * General backup
+  * [SERVER] TODO prepare data for the general backup of the client system.
+
+User (administrator) interface
+   * [CLIENT] CMD police scan    - scan local system and send data to the server
+   * [CLIENT] CMD police backup  - perform client backup 
+   * [CLIENT] CMD police client  - police client + police scan 
+   * [CLIENT] CMD police diff    - show differences on the client side 
+   * [CLIENT] CMD police sync    - synchronize current client with source 
+   * [SERVER] CMD police distribute - distribute sw to the client or clients 
+   * [SERVER] system config file structure and options
+
+Implementation details
+ * Written in Perl 5, using common utilities and modules available in CentOS system. 
+ * Documentation is written as a part of source code in the perl-doc language.
+ * Output in the .tar.gz and .rpm form available through sourceforge or googlecode web site. 
+ * System divided into the server and client part. Communication between those two must not endanger both of them. 
+
+Communication protocol 
+The server and client comunicate inside of the SSH protocol. The communication is based on XML exchange. The protocol uses a simple query-response interaction. The server which connects to the client sends the configuration content and waits for the client response. The client perform actions required by server and returns the output data or error code with description. 
+
+The example of the data sent by the server:
+{{{
+ <server>
+   <paths>
+      <path flags="[+M-5]">path_Pattern2</path>
+      <path flags="[+5-UG]">path_pattern2</path>
+      ...
+   </paths>
+   <actions>
+     <scan/>
+     <backup/>
+   </actions>
+ </server>
+}}}
+
+The server/paths/path define flags for a path.
+The second part of the file defines actions to perform on the client side. 
+ * server/actions/scan - tell to the client to perform scan directory structure and send the output report to the server 
+ * server/actions/backup - tell to the client to perform backup of the configuration files (paths defined with +B flag) 
+
+After that communication part the server still keep the connection and wait for the client outputs. The output is dependend on the actions reqired by the server. 
+
+{{{
+  SERVER: open connection
+  SERVER: sned request to the client 
+  CLIENT: returns required data or errors
+  SERVER: close connection 
+}}}
+
+The output from the client side for the previous request might by follow: 
+ 
+{{{
+ <client>
+   <capabilites> 
+     <scan/>
+     <backup/>
+   </capabilities> 
+   <scan>
+      <file name="/usr/local/etc" cksum="sxxxx" size="1000" guid="0" ....>
+   </scan> 
+   <backup>
+      tgz of the binnary data
+   </backup>
+ </client>
+}}}
+
+There are also error output in the response:
+
+{{{
+ <client>
+   <capabilites> 
+     <backup/>
+   </capabilities> 
+   <error>No scan allowed - see client cpabilities</error> 
+   <backup>
+      tgz of the binnary data
+   </backup>
+ </client>
+}}}
+
+or: 
+
+{{{
+ <client>
+   <capabilites> 
+     <backup/>
+     <scan/>
+   </capabilities> 
+   <error>The client is already in progres</error> 
+ </client>
+}}}
+
+
+The meaning of the items is follow: 
+ clinet/capabilites - the list of the capabilities (actions) supported by the client 
+ client/scan/file   - the output data for the scanning process. As the attributes the values of the scanned items are returned 
+ client/backup      - data of the backup process 
+ client/error       - this tag is send when the error ocures on the client side. The errors are passed as the textual information. 
+
+
