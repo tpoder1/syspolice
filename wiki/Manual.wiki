@@ -111,7 +111,8 @@ Each section allows to use different configuration options. Basic options are de
 || email          || Example: admin@foo.vutbr.cz                       || List of administrators address. This address will be used to send reports. ||
 || maxlines       || 3000                                              || The max number of lines to send through an email . ||
 || subject        || [POLICE] report for %{system}                     || An email subject with the police report (see -m option ) ||
-|| Package base directory and repositories definition ||
+|| mailfrom       || police%{servername}                               || The from address used in the mail reports ||
+|| *Package base directory and repositories definition* ||
 || rpmrepos       || %{basedir}/repos                                  || paths to .rpm repositories ||
 || pkgdir         || %{basedir}/pkgdir                                 || base path where dir, tgz and lst are searched ||
 || *Packages definition* ||
@@ -134,6 +135,11 @@ The macro expansion
 The the config file you can use an macro. The macros simplyfies the complex configuration of syspolice. On any place in the config file you can you %{macro_name} syntax. 
 As the macro you can use any option from the config file. There are also some pred-defined macros. In general there is no difference between options and predefined macros. 
 The only diffrence is that predefined values can't be changed in the config file. 
+
+|| *macro*      || *meaning* ||
+|| servername   || The hostname of the police server ||
+|| system       || The current system name ||
+|| datetime     || Current date and time in YYYY-MM-DD.HH:MM:SS format ||
 
 The special use *use* can by used to include content of the the other file. The manner how the file is included
 depends the format of the included file. If the file is divided into sections the sections are placed into the place
