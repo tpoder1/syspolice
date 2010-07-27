@@ -99,10 +99,11 @@ path        [-M]/var/run/
 Each section allows to use different configuration options. Basic options are described above:
   
 || *option*       || *default value, example of use*                   ||  *description*   || 
+|| *General options* ||
 || basedir        || /home/police                                      || The base dir where basic police structure is placed. ||
 || dbdir          || /var/police/%{system}/                            || Directory where the scan database  is stored. ||
 || use            || Example: includes/global.lst                      || load configuration from the file and place into current position ||
-
+|| *Options uses generaly by scanning the clinet* ||
 || hostname       || Example: webserver.foo.vutbr.cz                   || The client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
 || basearch       || i386                                              || The client's basic architecture ||
 || arch           || i386 i686 noarch  - depends on basearch           || List if client architectures supported by client. ||
@@ -110,19 +111,19 @@ Each section allows to use different configuration options. Basic options are de
 || email          || Example: admin@foo.vutbr.cz                       || List of administrators address. This address will be used to send reports. ||
 || maxlines       || 3000                                              || The max number of lines to send through an email . ||
 || subject        || [POLICE] report for %{system}                     || An email subject with the police report (see -m option ) ||
-
+|| Package base directory and repositories definition ||
 || rpmrepos       || %{basedir}/repos                                  || paths to .rpm repositories ||
 || pkgdir         || %{basedir}/pkgdir                                 || base path where dir, tgz and lst are searched ||
-
+|| *Packages definition* ||
 || pkg:rpm        ||  Example: samba-client                            || name of .rpm package ||
 || pkg:dir        ||  Example: myconf                                  || name of dir package ||
 || pkg:tgz        ||  Example: myconf.tgz                              || name of tgz package ||
 || pkg:lst        ||  Example: lists/files.xml                         || name of file (or direcotry) where list (or lists) of files are placed ||
 || path           ||  Example: [-X]/var/run                            || see section paths ||
-
+|| *Backup and commit definitions*
 || backupfile     || %{dbdir}/backup.tgz                               || Where the result of the backup is stored.        || 
 || commitdir      || %{dbdir}/commits/                                 || Where the result of the manul or autocommit are stored. ||
-
+|| *Kicstart preparation procedure* ||
 || ksfile         || %{basedir}/install/kickstart/%{system}.cfg        || Where police install cmd will create the installation kicstart file. ||
 || kstemplate     || %{basedir}/install/kickstart/kicstart-teplate.cfg || Where police install cmd should look for the kicstart template file. ||
 || ksdata         || %{dbdir}/install.tgz                              || Where the post installation files are prepared. ||
