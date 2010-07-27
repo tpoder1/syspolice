@@ -400,7 +400,7 @@ sub GetFullPath {
 	my ($pkgdir) = $pkg; 
 	# if the name of tha package start with / ignore the basedir:dir option     
 	if  ($pkg !~ /^\/.+/) {
-		($pkgdir) = $self->{Config}->GetVal("basedir:dir");
+		($pkgdir) = $self->{Config}->GetVal("pkgdir");
 		$pkgdir .= "/".$pkg;
 	}
 
