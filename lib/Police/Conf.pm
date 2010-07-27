@@ -66,12 +66,8 @@ sub SetMacro {
 	my ($self, $key, @val) = @_;
 
 	foreach my $section (@{$self->{SetSections}}) {
-		# add values into %CONFIG
-		if (!defined($self->{Data}->{$section}->{$key})) {
-			$self->{Data}->{$section}->{$key} = [ @val ];
-		} else {
-			push(@{$self->{Data}->{$section}->{$key}},  @val);
-		}
+		# set values into %CONFIG
+		$self->{Data}->{$section}->{$key} = [ @val ];
 	}
 }
 
@@ -94,7 +90,7 @@ sub ApplyMacro {
 	}
 
 	# parse the string and search for macros ( %{value} )
-	while ($str =~ /(.*)\%{(.+)}(.+)/) {
+	while ($str =~ /(.*)\%{(.+)}(.*)/) {
 		my ($newval) = $self->GetVal($2);
 		$newval = "" if (!defined($newval));
 
