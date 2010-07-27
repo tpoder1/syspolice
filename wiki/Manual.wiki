@@ -84,44 +84,55 @@ The example config file is shown.
 {{{
 # cat /home/sfink/config/webserver.foo.bar.cz
 
-[general]
-hostname    = webserver.foo.bar.cz
-arch        = i386
-sendmail    = admin@foo.vutbr.cz
+hostname    webserver.foo.bar.cz
+arch        i386
+email       admin@foo.vutbr.cz
 
-[check]
-rpmpkg      = /%r/rpmdir/
-dirpkg      = /%r/pkgdir/
 
-[check, daily]
-exclude     = /var/log /var/run /home/
-include     = /home/sfink
-path        = [-M]/var/run/
-backup      = /etc/sysconfig/network
+pkg:rpm     /%r/rpmdir/
+pkg:dir     /%r/pkgdir/
 
-[check, hourly]
-exclude     = /
-include     = /usr/sbin/sshd 
+path        [-M]/var/run/
+
 }}}
 
 Each section allows to use different configuration options. Basic options are described above:
   
-|| *section* || *option*       || *example*                || *description*   || 
-|| *         || use            || includes/global.lst    || load configuration from the file and place into current position ||
-|| general   || hostname       || webserver.foo.vutbr.cz   || Client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
-|| general   || arch           || i386 i686 noarch                    || List if client architectures supported by client. ||
-|| general   || sendmail       || admin@foo.vutbr.cz       || List of administrators address. This address will be used to send reports. ||
-|| check     || rpmdir         || /home/sfink/rpmdir /var/rpm    || paths to .rpm repositories ||
-|| check     || pkgdir         || /home/sfink/pkgdir    || paths to .dir repositories ||
-|| check     || rpm            || samba-client    || name of .rpm package ||
-|| check     || dir            || myconf    || name of .dir package ||
-|| check     || list           || lists/files.lst    || name of file where list of client files are placed ||
-|| check     || path           || /var/run    || see section paths ||
-|| check     || exclude        || /var/run    || see section paths ||
-|| check     || include        || /var/run    || see section paths ||
-|| check     || backup         || /var/run    || see section paths ||
-|| check     || history        || 0           || see section history sums ||
+|| *option*       || *default value, example of use*                   ||  *description*   || 
+|| basedir        || /home/police                                      || The base dir where basic police structure is placed. ||
+|| dbdir          || /var/police/%{system}/                            || Directory where the scan database  is stored. ||
+|| use            || Example: includes/global.lst                      || load configuration from the file and place into current position ||
 
+|| hostname       || Example: webserver.foo.vutbr.cz                   || The client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
+|| basearch       || i386                                              || The client's basic architecture ||
+|| arch           || i386 i686 noarch  - depends on basearch           || List if client architectures supported by client. ||
+|| scancmd        || police-client                                     || The command to perfomed on the client side to scan the client's directory structure. ||
+|| email          || Example: admin@foo.vutbr.cz                       || List of administrators address. This address will be used to send reports. ||
+|| maxlines       || 3000                                              || The max number of lines to send through an email . ||
+|| subject        || [POLICE] report for %{system}                     || An email subject with the police report (see -m option ) ||
+
+|| rpmrepos       || %{basedir}/repos                                  || paths to .rpm repositories ||
+|| pkgdir         || %{basedir}/pkgdir                                 || base path where dir, tgz and lst are searched ||
+
+|| pkg:rpm        ||  Example: samba-client                            || name of .rpm package ||
+|| pkg:dir        ||  Example: myconf                                  || name of dir package ||
+|| pkg:tgz        ||  Example: myconf.tgz                              || name of tgz package ||
+|| pkg:lst        ||  Example: lists/files.xml                         || name of file (or direcotry) where list (or lists) of files are placed ||
+|| path           ||  Example: [-X]/var/run                            || see section paths ||
+
+|| backupfile     || %{dbdir}/backup.tgz                               || Where the result of the backup is stored.        || 
+|| commitdir      || %{dbdir}/commits/                                 || Where the result of the manul or autocommit are stored. ||
+
+|| ksfile         || %{basedir}/install/kickstart/%{system}.cfg        || Where police install cmd will create the installation kicstart file. ||
+|| kstemplate     || %{basedir}/install/kickstart/kicstart-teplate.cfg || Where police install cmd should look for the kicstart template file. ||
+|| ksdata         || %{dbdir}/install.tgz                              || Where the post installation files are prepared. ||
+
+
+
+The macro expansion 
+The the config file you can use an macro. The macros simplyfies the complex configuration of syspolice. On any place in the config file you can you %{macro_name} syntax. 
+As the macro you can use any option from the config file. There are also some pred-defined macros. In general there is no difference between options and predefined macros. 
+The only diffrence is that predefined values can't be changed in the config file. 
 
 The special use *use* can by used to include content of the the other file. The manner how the file is included
 depends the format of the included file. If the file is divided into sections the sections are placed into the place
