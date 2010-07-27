@@ -149,7 +149,7 @@ sub ScanRpm($$$) {
 
 	# find the rpm file in a file system
 	my $lastname = undef;
-	foreach my $rpmdir ($self->{Config}->GetVal("basedir:rpm")) {
+	foreach my $rpmdir ($self->{Config}->GetVal("rpmrepos")) {
 		my $cmd = sprintf("find %s -name \"%s*.rpm\" -print 2>&1 ", $rpmdir, $rpmname);
 		open F1, "$cmd|";
 		while (my $file = <F1>) {
@@ -170,7 +170,7 @@ sub ScanRpm($$$) {
 
 	# check if we found any file
 	if (!defined($lastname) || $lastname eq "") {
-		$self->{Log}->Error("ERR neither RPM package %s found in %s.", $rpmname, join(", ", $self->{Config}->GetVal("basedir:rpm")));
+		$self->{Log}->Error("ERR neither RPM package %s found in %s.", $rpmname, join(", ", $self->{Config}->GetVal("rpmrepos")));
 		return 0;
 	}
 

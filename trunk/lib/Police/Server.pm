@@ -405,9 +405,9 @@ sub SendReport {
 			$self->{Log}->Error("ERR no recipients defined\n");
 			return 0;
 		}
-		my ($subject) = $self->{Config}->GetVal("email:subject"); 
-		my ($lines) = $self->{Config}->GetVal("email:lines"); 
-		my ($from) = $self->{Config}->GetVal("email:from"); 
+		my ($subject) = $self->{Config}->GetVal("subject"); 
+		my ($lines) = $self->{Config}->GetVal("maxlines"); 
+		my ($from) = $self->{Config}->GetVal("mailfrom"); 
 
 		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if (!defined($subject) || $subject eq "");
 		$lines = 4000 if (!defined($lines) || $lines eq "");

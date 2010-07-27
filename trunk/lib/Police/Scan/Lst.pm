@@ -124,7 +124,7 @@ sub GetFullPath {
 	my $pkgpath = $pkg;
 	# if the name of tha package start with / ignore the basedir:tgz option     
 	if  ($pkg !~ /^\/.+/) {
-		my ($pkgdir) = $self->{Config}->GetVal("basedir:lst");
+		my ($pkgdir) = $self->{Config}->GetVal("packagedir");
 		$pkgpath = $pkgdir."/".$pkg;
 	}
 
