@@ -16,6 +16,7 @@ use MLDBM qw (DB_File Storable);
 use XML::Parser;
 use Mail::Send;
 use MIME::Base64 qw(decode_base64 encode_base64);
+use Sys::Hostname;
 
 #use File::Glob ':globally';
 
@@ -98,13 +99,14 @@ sub new {
 	$class->{Config} = Police::Conf->new($hostid, BaseDir => $class->{CfgDir}, Log => $class->{Log} );	
 
 	$class->{Config}->SetMacro("system", $hostid);
+	$class->{Config}->SetMacro("servername", hostname());
 
 	my ($wrkdir) = $class->{Config}->GetVal("dbdir");	
 	# sewt workdir, add hostid and create the directory if doesn't not exists
 	if (!defined($wrkdir)) {
 		$class->{WorkDir} =  "/var/police/".$hostid;
 	} else {
-		$class->{WorkDir} = $wrkdir."/".$hostid;
+		$class->{WorkDir} = $wrkdir;
 	}
 
 	if ( ! -d $class->{WorkDir} ) {
@@ -333,7 +335,7 @@ sub ScanPackages {
 			$scan{$type}->ScanPkg($pkg);
 		# unknown package type 
 		} else {
-			$self->{Log}->Error("ERR unknown a package type %s:%s", $type, $pkg); 
+			$self->{Log}->Error("ERR unknown the package type %s:%s", $type, $pkg); 
 		}
 		$self->{Log}->Progress("scanning packages... done");
 #		$self->{Log}->Debug(10, "Conncet comand %s", $cmd); 
@@ -948,13 +950,13 @@ sub PrepareInstall {
 }
 
 
-=head2 MakeLst
+=head2 GetLst
 
 Prepare lst file based on diff from the prevous run 
 
 =cut
 sub GetLst {
-	my ($self) = @_;
+	my ($self, $filename) = @_;
 
 	my $flist = $self->InitList();
 
@@ -966,10 +968,12 @@ sub GetLst {
 		return 0;
 	}
 
-	open FLIST, $self->{EdFile};
-	open FOUT, ">filelist.xml";
+	$filename = "filelist.xml" if (!defined($filename) || $filename eq "");
 
-	print FOUT "<listfile>\n";
+	open FLIST, $self->{EdFile};
+	open FOUT, ">$filename";
+
+	printf FOUT "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
 
 	while (my $file = <FLIST>) {
 		chomp $file;	
@@ -992,8 +996,37 @@ sub GetLst {
 	print FOUT "</listfile>\n";
 	close FOUT;
 	close FLIST;
+	$self->{Log}->Progress("Data has been writen into %s...\n", $filename);
 
 }
 
+=head2 Commit
+
+Commit changes into %{commitdir} direcotry named as YYY-MM-DD.HH.MM.SS-commit.xml
+
+=cut
+sub Commit {
+	my ($self) = @_;
+
+	my ($commitdir) = $self->{Config}->GetVal("commitdir");
+
+	if (!defined($commitdir) || $commitdir eq "") {
+		$self->{Log}->Error("The value of %{commitdir} variable not defined");
+		return undef;
+	}
+
+	if ( ! -d $commitdir ) {
+		if (! mkdir $commitdir) {
+			$self->{Log}->Error("Can not create the directory %s", $commitdir);
+			return undef;
+		}
+	}
+
+	my $filename = sprintf("%s/%s-commit.xml", $commitdir, strftime("%Y-%m-%dT%H:%M:%S", localtime));
+
+	return $self->GetLst($filename);
+	
+}
 
 1;
+

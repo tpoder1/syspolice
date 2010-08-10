@@ -90,11 +90,17 @@ sub ApplyMacro {
 	}
 
 	# parse the string and search for macros ( %{value} )
-	while ($str =~ /(.*)\%{(.+)}(.*)/) {
-		my ($newval) = $self->GetVal($2);
+	while ($str =~ /^(.*)\%{(.+)}(.*)$/) {
+		my ($p1, $p2, $p3) = ($1, $2, $3);
+		my ($newval) = $self->GetVal($p2);
 		$newval = "" if (!defined($newval));
 
-		$str = $1.$newval.$3;
+		# Log unidentified macros 
+		$self->{Log}->Error("ERR the macro %%{%s} not defined", $p2) if ($newval eq "");
+
+#		printf "%s -> %s \n", $str,  $p1.$newval.$p3;
+
+		$str = $p1.$newval.$p3;
 	} 
 
 	$self->{Recursion}--;
