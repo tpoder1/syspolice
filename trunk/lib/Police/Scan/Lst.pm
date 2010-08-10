@@ -130,7 +130,7 @@ sub GetFullPath {
 
 	# test if a directory or a file exists 
 	if ( ! -f $pkgpath && ! -d $pkgpath ) {
-		$self->{Log}->Error("ERR the file or directory %s for package %s not found", $pkgpath, $pkg, $self->{Config}->{SysName});
+		$self->{Log}->Error("ERR the file or directory %s for the package %s not found", $pkgpath, $pkg, $self->{Config}->{SysName});
 		return undef;
 	} else {
 		if ( -d $pkgpath ) {
