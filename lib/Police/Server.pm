@@ -17,6 +17,8 @@ use XML::Parser;
 use Mail::Send;
 use MIME::Base64 qw(decode_base64 encode_base64);
 use Sys::Hostname;
+use Fcntl qw/:seek/;
+
 
 #use File::Glob ':globally';
 
@@ -414,8 +416,10 @@ sub SendReport {
 		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if (!defined($subject) || $subject eq "");
 		$lines = 4000 if (!defined($lines) || $lines eq "");
 
+		my %rcpts;
 		foreach my $mail (@mails) {	
-			$self->{Log}->Progress("sending the report... recipient:%s", $mail);
+			next if (defined($rcpts{$mail}));
+			$self->{Log}->Progress("sending the report... recipient:%s\n", $mail);
 
 			my  $msg = Mail::Send->new(Subject => $subject, To => $mail);
 			$msg->set('From', $from) if (!defined($from) || $from ne "");
@@ -429,6 +433,8 @@ sub SendReport {
 				printf $fd "\n\n\n....\n\nWARNING: %d lines has been truncated.\n", -1 * $lines;
 			}
 			close $fd;
+			seek $fs, 0, SEEK_SET;
+			$rcpts{$mail} = 1;
 		}
 
 		close $fs;
