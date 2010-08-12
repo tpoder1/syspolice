@@ -208,6 +208,9 @@ Each option could be prefixed by + or - flag. Sign '+' enable the option and '-'
 || G || check group owner ||
 || D || check major and minor device number ||
 || B || do backup this file or directory ||
+|| A || perform the autocommit operation ||
+|| X || same as M5SHLUGD ||
+
 
 One directory can have multiple options. All this options are evaluated in defined order and last used value is applied.  
 
@@ -361,5 +364,3 @@ The meaning of the items is follow:
  client/scan/file   - the output data for the scanning process. As the attributes the values of the scanned items are returned 
  client/backup      - data of the backup process 
  client/error       - this tag is send when the error ocures on the client side. The errors are passed as the textual information. 
-
-
