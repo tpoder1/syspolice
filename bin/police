@@ -87,10 +87,11 @@ foreach my $system (glob("*")) {
 }
 
 foreach (keys %SYSTEMS) {
+	next if ($_ eq 'all');
 	$LOG->Error("Configuration file not foud for %s in dir %s", $_, $OPTS{'c'});
 }
 
-foreach my $system (keys %SRV) {
+foreach my $system (sort keys %SRV) {
 	next if (!defined($SRV{$system}));
 	if ($CMD eq "client") {
 		$SRV{$system}->ScanClient();

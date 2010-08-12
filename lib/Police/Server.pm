@@ -33,7 +33,8 @@ my %FLAGSMAP = (
 	'S' => 'size',
 	'L' => 'symlink',
 	'D' => 'dev',
-	'T' => 'mtime'
+	'T' => 'mtime',
+	'A' => 'autocommit'
 	);
 
 # defines file types and output format definition
@@ -419,7 +420,7 @@ sub SendReport {
 		my %rcpts;
 		foreach my $mail (@mails) {	
 			next if (defined($rcpts{$mail}));
-			$self->{Log}->Progress("sending the report... recipient:%s\n", $mail);
+			$self->{Log}->Progress("sending the report... recipient:%s", $mail);
 
 			my  $msg = Mail::Send->new(Subject => $subject, To => $mail);
 			$msg->set('From', $from) if (!defined($from) || $from ne "");
@@ -665,8 +666,10 @@ sub MkDiff {
 	# traverse all files from both the client and the side
 	my $cnt = 0;
 	my $maxcnt = $stats{'server'} > $stats{'client'} ? $stats{'server'} : $stats{'client'};
-	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
-
+#	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
+ 
 		$self->{Log}->Progress("creating the diff report... %d%%",  $cnt++ / $maxcnt * 100);
 
 		my $client =  $diff->{Client} if (defined($diff->{Client}));
@@ -689,14 +692,17 @@ sub MkDiff {
 			next;
 		}
 
-		foreach (split(//, $chkflags)) {
+		foreach ((split(//, $chkflags), 'A')) {
 			if (defined($setflags{$_})) {
 				$flags{$_} = $FLAGSMAP{$_};
 			}
 		}
 
+
 		# go to a next file if there are no flags to check
-		if (keys %flags == 0) {
+		my $sf = join('', keys %flags);
+
+		if ($sf eq '' || $sf eq 'A') {
 			delete($self->{'DiffDb'}->{$file});
 			$stats{'skipped'}++;
 			next;
@@ -709,12 +715,15 @@ sub MkDiff {
 		if (defined($server) && defined($client)) {
 			# test which flags are differend
 			while (my ($flag, $att) = each %flags) {
+				next if ($flag eq 'A'); 
 				if (defined($server->{$att}) && defined($client->{$att}) && $server->{$att} eq $client->{$att}) {
 					delete($flags{$flag});
 				}
 			}
 			# remove from diffile if there are no any differences
-			if ( keys(%flags) == 0 ) {
+			my $sf = join('', keys %flags);
+			if ($sf eq '' || $sf eq 'A') {
+		#	if ( keys(%flags) == 0 ) {
 				delete($self->{'DiffDb'}->{$file});
 					$stats{'same'}++;
 				next;	# skip to an another file
@@ -736,7 +745,16 @@ sub MkDiff {
 		$self->Report("   C %s \n", DescribeFile(%{$client})) if (defined($client));
 		$self->Report("   S %s [%s]\n", DescribeFile(%{$server}), $server->{'package'}) if (defined($server));
 		$self->Report("\n");
+
+#		printf "\nMacin: %s %s %d\n", $file, join("", sort keys %flags), defined($flags{'A'});
+		# process autocommit files 
+		if (defined($flags{'A'})) {
+#			printf "\n AUTOCMT: %s\n", $file;
+			$self->AutoCommitAdd($file);
+		}
 	}
+
+	$self->AutoCommitFinish();
 
 	$self->Report("\n\nStatistics:\n");
 	while (my ($key, $val) = each %stats) {
@@ -966,7 +984,9 @@ sub GetLst {
 
 	my $flist = $self->InitList();
 
-	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
 		printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 	}
 
@@ -1034,5 +1054,68 @@ sub Commit {
 	
 }
 
-1;
+=head2 AutoCommitAdd
 
+Add the file into autocommit file 
+
+=cut
+sub AutoCommitAdd {
+	my ($self, $file) = @_;
+
+	my $handle;
+
+	if (!defined($self->{CommitHandle})) {
+			my ($commitdir) = $self->{Config}->GetVal("commitdir");
+			if (!defined($commitdir) || $commitdir eq "") {
+				$self->{Log}->Error("The value of %{commitdir} variable not defined");
+				return undef;
+			}
+
+			if ( ! -d $commitdir ) {
+				if (! mkdir $commitdir) {
+					$self->{Log}->Error("Can not create the directory %s", $commitdir);
+					return undef;
+				}
+			}
+
+			my $filename = sprintf("%s/%s-auto-commit.xml", $commitdir, strftime("%Y-%m-%dT%H:%M:%S", localtime));
+			open $handle, "> $filename";
+			$self->{CommitHandle} = $handle;
+
+			printf $handle "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
+	} else {
+		$handle = $self->{CommitHandle};
+	}
+
+	my $diff = $self->{'DiffDb'}->{$file};
+
+   	my $atts = "";
+	if (defined($diff->{Client})) {
+		while (my ($key, $val) = each %{$diff->{Client}}) {
+			$atts .= sprintf("%s=\"%s\" ", $key, $val) if (defined($val) && $key ne "name");
+		} 
+	} else {
+		$atts = "nonexists=\"1\"";
+	}
+
+	# encode file name
+	$file =~ s/([^-_.~A-Za-z0-9\/ \+\:\@])/sprintf("%%%02X", ord($1))/seg;
+    printf $handle "\t<file name=\"%s\" %s/>\n", $file, $atts;
+}
+
+=head2 AutoCommitFinish
+
+Close the autocommit file and release handle
+
+=cut
+sub AutoCommitFinish {
+	my ($self) = @_;
+
+	if (defined($self->{CommitHandle})) {
+		my $handle = $self->{CommitHandle};
+		print $handle "</listfile>\n";
+		close $handle;
+	}
+}
+
+1;
