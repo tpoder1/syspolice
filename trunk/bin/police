@@ -56,7 +56,7 @@ if ( !getopts("?emqd:c:p:",\%OPTS) || $OPTS{'?'}) {
 
 my $LOG =  Police::Log->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'});
 
-if (!chdir $OPTS{'c'}) {
+if (! -d $OPTS{'c'}) {
 	$LOG->Error("Can't change to directory  %s", $OPTS{'c'});
 	exit 1;
 }
@@ -76,8 +76,9 @@ if (!defined($CMD) || $CMD eq "" || !%SYSTEMS || keys(%SYSTEMS) == 0) {
 
 my %SRV; 	# the hash where the server instances are stored 
 
-foreach my $system (glob("*")) {
+foreach my $system (glob($OPTS{'c'}."/*")) {
 	next if ( ! -f  $system ); 
+	$system = basename($system);
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
 	$LOG->Progress("%s > loading the configuration... ", $system);
 	$LOG->Debug(10, "%s > loading the configuration", $system);

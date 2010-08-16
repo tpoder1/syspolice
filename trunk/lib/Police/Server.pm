@@ -441,6 +441,7 @@ sub SendReport {
 		close $fs;
 		$self->{Log}->Progress("sending the report... done\n");
 	}	
+	unlink($self->{RepFile});
 
 }
 
@@ -674,19 +675,18 @@ sub MkDiff {
 
 		my $client =  $diff->{Client} if (defined($diff->{Client}));
 		my $server =  $diff->{Server} if (defined($diff->{Server}));
-		if (defined ($diff->{Server}->{'nonexists'})) {		
+		if ( defined($diff->{Server}->{'nonexists'}) && !defined($diff->{Client}) ) {		
 			$stats{'same'}++;
+			delete($self->{'DiffDb'}->{$file});
 			next;	
 		}
 
 		# determine file type, load flags and dterine flags to check
-		my $type = substr(defined($server) ? $server->{'mode'} : $client->{'mode'} , 0, 1);
+		my $type = substr(defined($client) ? $client->{'mode'} : $server->{'mode'} , 0, 1);
 		my %setflags = $self->GetPathFlags($file);
 		my $chkflags =  $FTYPEFMT{$type}->[0];
 		my %flags = ();
 
-#		printf "\n\nXXXX %s: %s %s\n\n", $file, $chkflags, join('', %setflags);
- 
 		if (!defined($chkflags)) {
 			$self->{Log}->Error("Unknown outuput format (\$FTYPEFMT) for '%s' (file: %s)", $type, $file);
 			next;
@@ -697,7 +697,6 @@ sub MkDiff {
 				$flags{$_} = $FLAGSMAP{$_};
 			}
 		}
-
 
 		# go to a next file if there are no flags to check
 		my $sf = join('', keys %flags);
@@ -715,7 +714,7 @@ sub MkDiff {
 		if (defined($server) && defined($client)) {
 			# test which flags are differend
 			while (my ($flag, $att) = each %flags) {
-				next if ($flag eq 'A'); 
+				next if ($flag eq 'A');
 				if (defined($server->{$att}) && defined($client->{$att}) && $server->{$att} eq $client->{$att}) {
 					delete($flags{$flag});
 				}
@@ -723,12 +722,11 @@ sub MkDiff {
 			# remove from diffile if there are no any differences
 			my $sf = join('', keys %flags);
 			if ($sf eq '' || $sf eq 'A') {
-		#	if ( keys(%flags) == 0 ) {
 				delete($self->{'DiffDb'}->{$file});
-					$stats{'same'}++;
+				$stats{'same'}++;
 				next;	# skip to an another file
 			} else {
-					$stats{'differend'}++;
+				$stats{'differend'}++;
 			}
 		} elsif (defined($server) && !defined($client)) {
 			$flags{'-'} = 'miss';
@@ -836,7 +834,9 @@ sub Download {
 
 	my $flist = $self->InitList();
 
-	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+#	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
 		if (defined($diff->{Client})) {
 			printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 		}
@@ -853,6 +853,7 @@ sub Download {
 	}	
 	close FOUT;
 	close $handle;
+	unlink($self->{EdFile});
 }
 
 =head2 GetConfig
@@ -1022,6 +1023,7 @@ sub GetLst {
 	print FOUT "</listfile>\n";
 	close FOUT;
 	close FLIST;
+	unlink($self->{EdFile});
 	$self->{Log}->Progress("Data has been writen into %s...\n", $filename);
 
 }
