@@ -18,6 +18,7 @@ use Mail::Send;
 use MIME::Base64 qw(decode_base64 encode_base64);
 use Sys::Hostname;
 use Fcntl qw/:seek/;
+use IPC::Open3;
 
 
 #use File::Glob ':globally';
@@ -231,21 +232,27 @@ sub RemoteCmd {
 		return undef;
 	}
 
-	my $rcmd = sprintf("ssh %s  \"(%s)\" ", $hostname, $cmd);
+	my $rcmd = sprintf("ssh %s \"(%s)\" ", $hostname, $cmd);
 	if (defined($input) && $input ne "") {
 		$rcmd .= sprintf(" < %s ", $input);
 	}
+
+
 	$self->{Log}->Log("Connecting to the host %s ", $hostname); 
 	$self->{Log}->Debug(10, "Conncet comand '%s'", $rcmd); 
 	$self->{Log}->Progress("connecting to the host %s... ", $hostname); 
-	my $handle;
-	if (! open $handle, "$rcmd |" ) {
+
+	# prepre handles 
+	my $hin;
+	my $hout;
+	my $herr = IO::File->new_tmpfile;
+	if (! open3($hin, $hout, $herr, $rcmd)) {
 		$self->{Log}->Error("ERR can not execute command %s (%s).", $rcmd, $!); 
 		return undef;
 	}
 	$self->{Log}->Progress("connecting to the host %s... done\n", $hostname); 
 
-	return $handle;
+	return ($hout, $herr, $hin);
 	
 }
 
@@ -284,14 +291,15 @@ sub ScanClient {
 	my $sstart = time();
 
 	# repair XXX
-	my ($cmd) = $self->{Config}->GetVal("cmd:scan");
+	my ($cmd) = $self->{Config}->GetVal("scancmd");
 	if (!defined($cmd) || $cmd eq "") {
 		$cmd = "police-client";
 	}
-	my $handle = $self->RemoteCmd($cmd, $reqfile);
+	my ($hout, $herr) = $self->RemoteCmd($cmd, $reqfile);
 
-	if (defined($handle)) { 
-		sleep(5);
+
+	if (defined($hout)) { 
+		sleep(2);
 
 		# parse the XML input from the client
 		my $xmlhnd = new XML::Parser(Handlers => {
@@ -299,11 +307,25 @@ sub ScanClient {
    	             'Char' => \&Police::Server::HandleXmlChar
    	             });
 
-		my $res = $xmlhnd->parse($handle, ErrorContext => 3, Self => $self );
-		$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
+		eval { my $res = $xmlhnd->parse($hout, ErrorContext => 3, Self => $self ); };
+		if ($@) { 
+			$self->ErrReport("Error when parsing the client outpur");
+		} else {
+			$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
+		}
 		
 	}
-	$self->{Log}->Progress("retreiving backup data... done\n"); 
+
+	my $buf;
+#	$herr |= O_NONBLOCK;
+	while (read($herr, $buf, 1024)) {
+		chomp $buf;
+		$self->ErrReport("Error when connecting, msg: %s", $buf); 
+		return 0;
+	}
+
+	return 1;
+
 	
 }
 
@@ -369,6 +391,19 @@ sub Report {
 	}
 	my $handle = $self->{RepHandle};
 	print $handle $str;
+}
+
+=head2 ErrReport
+
+Add string into the report. If the SendEmail flag is set then add into report file. If not print to stdout.
+
+=cut
+
+sub ErrReport {
+	my ($self, $fmt, @arg) = @_;
+	$self->{Log}->Error($fmt, @arg);
+	$self->Report($fmt."\n", @arg);
+
 }
 
 =head2 SendReport
@@ -441,7 +476,7 @@ sub SendReport {
 		close $fs;
 		$self->{Log}->Progress("sending the report... done\n");
 	}	
-	unlink($self->{RepFile});
+	unlink($self->{RepFile}) if defined($self->{RepFile});
 
 }
 
@@ -590,9 +625,10 @@ sub DescribeFile {
 	my (%at) = @_;
 
 	# missing description 
-	if (!defined($at{'mode'}) || defined($at{'nonexists'})) {
+	#if (!defined($at{'mode'}) && defined($at{'nonexists'})) {
+	if (!defined($at{'mode'})) {
 		return "missing";
-	}	
+	}
 
 	my $type = substr($at{'mode'}, 0, 1);
 	my $str;
@@ -649,6 +685,7 @@ sub MkDiff {
 	# blend the client and the server list into ones 
 	while ( my($file, $atts) =  each  %{$self->{'ServerDb'}}) {
 		my %diff;
+		next if (defined($atts->{'nonexists'}));
 		$diff{'Server'} = { %{$atts} };
 		$self->{'DiffDb'}->{$file} = \%diff ;
 		$stats{'server'}++;
@@ -675,11 +712,6 @@ sub MkDiff {
 
 		my $client =  $diff->{Client} if (defined($diff->{Client}));
 		my $server =  $diff->{Server} if (defined($diff->{Server}));
-		if ( defined($diff->{Server}->{'nonexists'}) && !defined($diff->{Client}) ) {		
-			$stats{'same'}++;
-			delete($self->{'DiffDb'}->{$file});
-			next;	
-		}
 
 		# determine file type, load flags and dterine flags to check
 		my $type = substr(defined($client) ? $client->{'mode'} : $server->{'mode'} , 0, 1);
@@ -846,13 +878,13 @@ sub Download {
 		return 0;
 	}
 
-	my $handle = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{EdFile});
+	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{EdFile});
 	open FOUT, "> download.tgz";
-	while (<$handle>) {
+	while (<$hout>) {
 		print FOUT $_;
 	}	
 	close FOUT;
-	close $handle;
+	close $hout;
 	unlink($self->{EdFile});
 }
 
