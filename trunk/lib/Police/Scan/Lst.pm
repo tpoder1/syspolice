@@ -153,11 +153,12 @@ Sacn directory/add the $self->files structure
 sub ScanPkg {
 	my ($self, $pkg) = @_;
 
-	$self->{Package} = $pkg;
 
 	my @files = $self->GetFullPath($pkg);
 	if (@files > 0 ) { 
 		foreach (@files) {
+			#$self->{Package} = $pkg;
+			$self->{Package} = $_;
 			if (defined($_) && $self->ScanLst($_)) {
 				$self->{Log}->Debug(5, "Scanned lst package %s for %s (file: %s)", $pkg, $self->{Config}->{SysName}, $_);
 			}

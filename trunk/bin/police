@@ -30,7 +30,7 @@ sub usage() {
 	printf "    -q        : quite mode, do not show the progress bar  \n";
 	printf "    -d <num>  : debug level, default value is 0  \n";
 	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $OPTS{'c'};
-	printf "    -p <num>  : perform the paraell scanning, num identifies the number of process run in concurency. This option turns on the -q and -q option   \n\n";
+	printf "    -p <num>  : perform the paraell scanning, num identifies the number of process run in concurency. This option turns on the -q and -m option   \n\n";
 	printf "Actions:   \n";
 	printf "    client    : connect to the client and perform  the scan and the backup operation  \n";
 	printf "    server    : scan server packages \n";
@@ -38,7 +38,7 @@ sub usage() {
 	printf "    check     : client + server + diff action blended into one command   \n";
 	printf "    download  : download differend files from the client side   \n";
 	printf "    config    : show options taken from the config file(s)   \n";
-	printf "    kdinstall : prepare data for system kickstart installation   \n";
+	printf "    ksinstall : prepare data for system kickstart installation   \n";
 	printf "    getlst    : create .xml list file based on the diff from the previous run  \n";
 	printf "    commit    : commit changes in te file system (creates YYYY-MM-DD.HH.MM.SS-commit.xml list file into %{commitdir})   \n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
@@ -102,9 +102,10 @@ foreach my $system (sort keys %SRV) {
 		$SRV{$system}->MkDiff();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "check") {
-		$SRV{$system}->ScanClient();
-		$SRV{$system}->ScanPackages();
-		$SRV{$system}->MkDiff();
+		if ($SRV{$system}->ScanClient()) {
+			$SRV{$system}->ScanPackages();
+			$SRV{$system}->MkDiff();
+		}
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "download") {
 		$SRV{$system}->Download();
