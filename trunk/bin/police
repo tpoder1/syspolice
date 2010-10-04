@@ -11,6 +11,8 @@ use Police::Scan::Dir;
 use Police::Server;
 use File::Basename;
 use Getopt::Std;
+use Parallel::ForkManager;
+
 
 #use Getopt;
 #use Archive::Tar;
@@ -20,6 +22,7 @@ my %OPTS;
 $OPTS{'d'} = 0;
 $OPTS{'q'} = 0;
 $OPTS{'c'} = "/police/config";
+my $PARALLEL = 0;
 
 sub usage() {
 	printf "Police server, usage: \n\n";
@@ -30,7 +33,7 @@ sub usage() {
 	printf "    -q        : quite mode, do not show the progress bar  \n";
 	printf "    -d <num>  : debug level, default value is 0  \n";
 	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $OPTS{'c'};
-	printf "    -p <num>  : perform the paraell scanning, num identifies the number of process run in concurency. This option turns on the -q and -m option   \n\n";
+	printf "    -p <num>  : perform the paraell check operation, num identifies the number of process run in concurency. This option turns on the -q and -m option   \n\n";
 	printf "Actions:   \n";
 	printf "    client    : connect to the client and perform  the scan and the backup operation  \n";
 	printf "    server    : scan server packages \n";
@@ -52,6 +55,14 @@ if ( !getopts("?emqd:c:p:",\%OPTS) || $OPTS{'?'}) {
 	usage;
 };
 
+# paralell run 
+my $pm;
+if ($OPTS{'p'} && $OPTS{'p'} > 0) {
+	$PARALLEL = $OPTS{'p'};
+	$pm = new Parallel::ForkManager($PARALLEL);	
+	$OPTS{'q'} = 1;		# quiet mode
+	$OPTS{'m'} = 1;		# mail mode
+}
 
 
 my $LOG =  Police::Log->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'});
@@ -92,8 +103,12 @@ foreach (keys %SYSTEMS) {
 	$LOG->Error("Configuration file not foud for %s in dir %s", $_, $OPTS{'c'});
 }
 
+
 foreach my $system (sort keys %SRV) {
 	next if (!defined($SRV{$system}));
+
+	my $pid = $pm->start and next if ($PARALLEL); 
+
 	if ($CMD eq "client") {
 		$SRV{$system}->ScanClient();
 	} elsif ($CMD eq "server") {
@@ -120,7 +135,11 @@ foreach my $system (sort keys %SRV) {
 	} else {
 		$LOG->Error("Unknow command %s \n", $CMD);
 	}
+
+	$pm->finish if ($PARALLEL); 
 }
+
+$pm->wait_all_children if ($PARALLEL);
 
 exit 0;
 
