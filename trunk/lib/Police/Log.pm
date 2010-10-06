@@ -33,7 +33,8 @@ sub new {
 	$class->{LogPrefix} = defined($params{LogPrefix}) ? $params{LogPrefix} : substr($0, rindex($0, '/') + 1, length($0));
 	$class->{Prefix} = defined($params{Prefix}) ? $params{Prefix} : "";
 	$class->{ShowDebug} = defined($params{ShowDebug}) ? $params{ShowDebug} : 0;
-	$class->{LogStdOut} = defined($params{LogStdOut}) ? $params{LogStdout} : 0;
+	$class->{LogStdOut} = defined($params{LogStdOut}) ? $params{LogStdOut} : 0;
+	$class->{ErrStdOut} = defined($params{ErrStdOut}) ? $params{ErrStdOut} : 0;
 	$class->{ShowProgress} = defined($params{ShowProgress}) ? $params{ShowProgress} : 1;
 
 	return $class;
@@ -80,7 +81,7 @@ Wite information to the system log and stderr
 sub Error {
 	my ($self, $msg, @par) = @_;
 
-	printf STDERR  $self->{Prefix}.$msg."\n", @par;
+	printf STDERR  $self->{Prefix}.$msg."\n", @par if ($self->{ErrStdOut} > 0);
 	$self->Log($msg, @par);
 }
 

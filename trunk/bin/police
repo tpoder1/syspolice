@@ -65,7 +65,7 @@ if ($OPTS{'p'} && $OPTS{'p'} > 0) {
 }
 
 
-my $LOG =  Police::Log->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'});
+my $LOG =  Police::Log->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'}, ErrStdOut => !$OPTS{'q'});
 
 if (! -d $OPTS{'c'}) {
 	$LOG->Error("Can't change to directory  %s", $OPTS{'c'});
@@ -108,6 +108,8 @@ foreach my $system (sort keys %SRV) {
 	next if (!defined($SRV{$system}));
 
 	my $pid = $pm->start and next if ($PARALLEL); 
+
+	$LOG->Prefix($system.": ");
 
 	if ($CMD eq "client") {
 		$SRV{$system}->ScanClient();
