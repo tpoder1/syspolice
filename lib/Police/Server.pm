@@ -94,7 +94,7 @@ sub new {
 		$class->{Log} = $params{Log};
 	}
 
-	$class->{Log}->Prefix($hostid." > ");
+	$class->{Log}->Prefix($hostid.": ");
 
 	# set base dir
 	$class->{CfgDir} = defined($params{CfgDir}) ? $params{CfgDir} : "/etc/police/";
@@ -232,7 +232,7 @@ sub RemoteCmd {
 		return undef;
 	}
 
-	my $rcmd = sprintf("ssh %s \"(%s)\" ", $hostname, $cmd);
+	my $rcmd = sprintf("ssh -o BatchMode=yes %s \"(%s)\" ", $hostname, $cmd);
 	if (defined($input) && $input ne "") {
 		$rcmd .= sprintf(" < %s ", $input);
 	}
@@ -309,7 +309,7 @@ sub ScanClient {
 
 		eval { my $res = $xmlhnd->parse($hout, ErrorContext => 3, Self => $self ); };
 		if ($@) { 
-			$self->ErrReport("Error when parsing the client outpur");
+			$self->ErrReport("Error when parsing the client output");
 		} else {
 			$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 		}
@@ -320,7 +320,11 @@ sub ScanClient {
 #	$herr |= O_NONBLOCK;
 	while (read($herr, $buf, 1024)) {
 		chomp $buf;
-		$self->ErrReport("Error when connecting, msg: %s", $buf); 
+		if ($buf =~ /\n/) {
+			$buf = "\n".$buf;
+			$buf = join("\n   ", split("\n", $buf));
+		}
+		$self->ErrReport("Error when connecting the host, msg: %s", $buf); 
 		return 0;
 	}
 
