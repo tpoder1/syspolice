@@ -128,13 +128,15 @@ sub new {
 	$class->{Config}->SetMacro("backupfile", $class->{BackupFile});
 
 	# tie some hash variables
-	my (%client, %server, %diff);
+	my (%client, %server, %diff, %statistics);
 	tie %client, 'MLDBM', $class->{WorkDir}.'/client.db';
 	tie %server, 'MLDBM', $class->{WorkDir}.'/server.db';
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
+	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
 	$class->{ClientDb} = \%client;
 	$class->{ServerDb} = \%server;
 	$class->{DiffDb} = \%diff;
+	$class->{Statistics} = \%statistics;
 	
 	return $class;
 }
@@ -146,6 +148,7 @@ sub DESTROY {
 	untie  %{$self->{ClientDb}};
 	untie  %{$self->{ServerDb}};
 	untie  %{$self->{DiffDb}};
+	untie  %{$self->{Statistics}};
 	
 }
 
@@ -210,6 +213,54 @@ sub HandleXmlChar {
 			print $handle decode_base64($self->{BackupBuffer});
 			$self->{BackupBuffer} = undef;
 		}
+	}
+}
+
+##########################################################
+# Statistics routines                                    #
+##########################################################
+=head2 StatSet
+
+# set value to statistics
+# $item -  a name of the item
+# $value - a value of the intem
+
+=cut
+
+sub StatSet {
+	my ($self, $item, $val) = @_;
+	$self->{Statistics}->{$item} = $val;
+}
+
+=head2 StatAdd
+
+# Add value to statistics
+# $item -  a name of the item
+# $value - a value of the intem
+
+=cut
+sub StatAdd {
+	my ($self, $item, $val) = @_;
+	if (!defined($self->{Statistics}->{$item})) {
+		$self->{Statistics}->{$item} += $val;
+	} else {
+		$self->{Statistics}->{$item} = 0;
+	}
+}
+
+=head2 StatGeItem
+
+# Add value to statistics
+# $item -  a name of the item
+# $value - a value of the intem
+
+=cut
+sub StatGetItem {
+	my ($self, $item) = @_;
+	if (!defined($self->{Statistics}->{$item})) {
+		return $self->{Statistics}->{$item};
+	} else {
+		return undef;
 	}
 }
 
