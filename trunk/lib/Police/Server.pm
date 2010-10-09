@@ -59,6 +59,27 @@ my %FTYPEFMT = (
 	'b' => [ 'UGMD',   '%s:%s  %s %s' ]
 	);
 
+# the definition of the statistics, defines 
+# types, output formats, ...
+# items : type, description , order
+# available types: 
+# t      - timestamp, for this type the start date/time and duration is stored 
+#          the firist using of StatAdd stores the inital date and the second stores diff time
+#          any other use of the StatAdd stores the difference between last and previous measure
+#		   If the value is not handed ovet the actual timestamp is used. 
+# s      - string value (the simple tex value is stored into statistics)
+# <type> - any format which can be used in the printf function 
+my %STATSDEF = (
+	'files_client'    => [ 'd',   'Client files',         110 ],
+	'files_server'    => [ 'd',   'Server files',         120 ],
+	'files_same'      => [ 'd',   'Same files',           130 ],
+	'files_differend' => [ 'd',   'Differend files',      140 ],
+	'files_skipped'   => [ 'd',   'Skipped files',        150 ],
+	'time_client'     => [ 't',   'Client scan time',     210 ],
+	'time_server'     => [ 't',   'Server scan time',     220 ],
+	'time_diff'       => [ 't',   'Diff analyzing time',  240 ],
+	'time_total'      => [ 't',   'Total check time',     300 ]
+	);
 
 =head1 NAME
 
@@ -241,10 +262,30 @@ sub StatSet {
 =cut
 sub StatAdd {
 	my ($self, $item, $val) = @_;
-	if (!defined($self->{Statistics}->{$item})) {
-		$self->{Statistics}->{$item} += $val;
+
+	# check id data type is defined for item, if not the default type (s) is being used
+	my $type = "s";
+	if (defined($STATSDEF{$item})) {
+		$type = $STATSDEF{$item}->[0];
+	}
+
+	# the type 't' have a little bit differend behaviour
+	if ($type eq 't') {
+			$val = time()  if (!defined($val));
+			my %stat;
+			if (defined($self->{Statistics}->{$item}->{InitTime})) {
+				$stat{DiffTime} = $val - $self->{Statistics}->{$item}->{InitTime};
+			}
+			$stat{InitTime} = $val;
+			$self->{Statistics}->{$item} = \%stat;
+	} elsif ($type eq 's') {
+			$self->{Statistics}->{$item} = $val;
 	} else {
-		$self->{Statistics}->{$item} = 0;
+		if (defined($self->{Statistics}->{$item})) {
+			$self->{Statistics}->{$item} += $val;
+		} else {
+			$self->{Statistics}->{$item} = 1;
+		}
 	}
 }
 
@@ -257,13 +298,49 @@ sub StatAdd {
 =cut
 sub StatGetItem {
 	my ($self, $item) = @_;
-	if (!defined($self->{Statistics}->{$item})) {
+
+	if (defined($self->{Statistics}->{$item})) {
 		return $self->{Statistics}->{$item};
 	} else {
-		return undef;
+		return "?";
 	}
 }
 
+=head2 StatPrint
+
+# Print all stattistics
+
+=cut
+sub StatPrint {
+	my ($self, @list) = @_;
+
+	sub srt {
+		return 0 if (!defined($STATSDEF{$a}->[2]) || !defined($STATSDEF{$b}->[2]));
+		return $STATSDEF{$a}->[2] <=> $STATSDEF{$b}->[2];
+	}
+
+	my $res = "";
+	foreach my $item ( sort srt keys %{$self->{Statistics}} ) {
+		# check id data type is defined for item, if not the default type (s) is being used
+		my ($type, $descr) = ('s', $item);
+		if (defined($STATSDEF{$item})) {
+			$type = $STATSDEF{$item}->[0];
+			$descr = $STATSDEF{$item}->[1];
+		}
+
+		if ($type eq 't') {
+			my ($tm, $diff) = (0,0);
+			$tm = $self->{Statistics}->{$item}->{InitTime} if (defined($self->{Statistics}->{$item}->{InitTime}));
+			$diff = $self->{Statistics}->{$item}->{DiffTime} if (defined($self->{Statistics}->{$item}->{DiffTime}));
+			$tm -= $diff;
+
+			$res .= sprintf "  %-20s : %5ds [started: %s]\n", $descr, $diff, strftime("%Y-%m-%d %H:%M", localtime($tm));
+		} else {
+			$res .= sprintf "  %-20s : %6s\n", $descr, $self->StatGetItem($item);
+		}
+	}
+	return $res;
+}
 
 =head2 RemoteCmd
 
@@ -316,6 +393,9 @@ Connect to the host and perform scanning, fill in $seld->{ClientDb} structure
 
 sub ScanClient {
 	my ($self) = @_;
+
+	$self->StatAdd('time_client');
+	$self->StatAdd('time_total');
 
 	# prepare request for the client 
 	my $reqfile = sprintf("%s/request.xml", $self->{WorkDir} );
@@ -379,6 +459,7 @@ sub ScanClient {
 		return 0;
 	}
 
+	$self->StatAdd('time_client');
 	return 1;
 
 	
@@ -392,6 +473,8 @@ Perform package scanning on the server side, fill in $self->{ServerDb} structure
 
 sub ScanPackages {
 	my ($self) = @_;
+
+	$self->StatAdd('time_server');
 
 	# clean-up the client database
 	(tied(%{$self->{ServerDb}}))->CLEAR();
@@ -421,6 +504,7 @@ sub ScanPackages {
 #		$self->{Log}->Debug(10, "Conncet comand %s", $cmd); 
 	}
 
+	$self->StatAdd('time_server');
 #	$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 	
 }
@@ -732,10 +816,11 @@ sub MkDiff {
 	# + file is missing on client side
 	# - file is left over on client side
 
-	my %stats = ( 'client' => 0, 'server' => 0, 'skipped' => 0, 'same' => 0, 'missed' => 0, 'dwelled' => 0, 'differend' => 0 );
+	$self->StatAdd('time_diff');
 
 	$self->{Log}->Progress("creating the diff report...");
 	(tied(%{$self->{DiffDb}}))->CLEAR();
+	my ($ccnt, $scnt) = (0, 0);
 
 	# blend the client and the server list into ones 
 	while ( my($file, $atts) =  each  %{$self->{'ServerDb'}}) {
@@ -743,7 +828,8 @@ sub MkDiff {
 		next if (defined($atts->{'nonexists'}));
 		$diff{'Server'} = { %{$atts} };
 		$self->{'DiffDb'}->{$file} = \%diff ;
-		$stats{'server'}++;
+		$self->StatAdd('files_server', 1);
+		$scnt++;
 	}
 	
 	while ( my($file, $atts) =  each  %{$self->{'ClientDb'}}) {
@@ -753,12 +839,13 @@ sub MkDiff {
 		}
 		$diff{'Client'} = { %{$atts} };
 		$self->{'DiffDb'}->{$file} = \%diff;
-		$stats{'client'}++;
+		$self->StatAdd('files_client', 1);
+		$ccnt++;
 	}
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
-	my $maxcnt = $stats{'server'} > $stats{'client'} ? $stats{'server'} : $stats{'client'};
+	my $maxcnt = $scnt > $ccnt ? $scnt : $ccnt;
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
@@ -790,7 +877,7 @@ sub MkDiff {
 
 		if ($sf eq '' || $sf eq 'A') {
 			delete($self->{'DiffDb'}->{$file});
-			$stats{'skipped'}++;
+			$self->StatAdd('files_skipped', 1);
 			next;
 		}
 
@@ -810,17 +897,17 @@ sub MkDiff {
 			my $sf = join('', keys %flags);
 			if ($sf eq '' || $sf eq 'A') {
 				delete($self->{'DiffDb'}->{$file});
-				$stats{'same'}++;
+				$self->StatAdd('files_same', 1);
 				next;	# skip to an another file
 			} else {
-				$stats{'differend'}++;
+				$self->StatAdd('files_differend', 1);
 			}
 		} elsif (defined($server) && !defined($client)) {
 			$flags{'-'} = 'miss';
-			$stats{'missed'}++;
+			$self->StatAdd('files_missed', 1);
 		} elsif (!defined($server) && defined($client)) {
 			$flags{'+'} = 'dwell';
-			$stats{'dwelled'}++;
+			$self->StatAdd('files_dwelled', 1);
 		} else {
 			$self->{Log}->Error("ERR file %s was not found ither client or server side", $file);
 			next;
@@ -841,10 +928,12 @@ sub MkDiff {
 
 	$self->AutoCommitFinish();
 
+	# close total statistics
+	$self->StatAdd('time_total');
+	$self->StatAdd('time_diff');
+
 	$self->Report("\n\nStatistics:\n");
-	while (my ($key, $val) = each %stats) {
-		$self->Report(" %s -> %s \n", $key, $val);
-	}
+	$self->Report($self->StatPrint());
 
 	$self->{Log}->Progress("creating the diff report... done\n");
 }
