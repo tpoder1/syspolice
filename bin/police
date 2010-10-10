@@ -44,6 +44,7 @@ sub usage() {
 	printf "    ksinstall : prepare data for system kickstart installation   \n";
 	printf "    getlst    : create .xml list file based on the diff from the previous run  \n";
 	printf "    commit    : commit changes in te file system (creates YYYY-MM-DD.HH.MM.SS-commit.xml list file into %%{commitdir})   \n";
+	printf "    statistics : print statistics related to system   \n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
 	printf "Version: %s\n", $VERSION;
 
@@ -91,8 +92,8 @@ foreach my $system (glob($OPTS{'c'}."/*")) {
 	next if ( ! -f  $system ); 
 	$system = basename($system);
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
-	$LOG->Progress("%s > loading the configuration... ", $system);
-	$LOG->Debug(10, "%s > loading the configuration", $system);
+	$LOG->Progress("loading the configuration for %s... ", $system);
+	$LOG->Debug(10, "loading the configuration for %s", $system);
 	#$LOG->Progress("loading the configuration... \n", $system);
 	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG);
 	delete($SYSTEMS{$system});
@@ -109,7 +110,7 @@ foreach my $system (sort keys %SRV) {
 
 	my $pid = $pm->start and next if ($PARALLEL); 
 
-	$LOG->Prefix($system.": ");
+	$LOG->Prefix($system.": ") if (scalar(keys(%SRV)) > 1) ;
 
 	if ($CMD eq "client") {
 		$SRV{$system}->ScanClient();
@@ -124,6 +125,10 @@ foreach my $system (sort keys %SRV) {
 			$SRV{$system}->MkDiff();
 		}
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
+	} elsif ($CMD eq "statistics") {
+		$SRV{$system}->Report("\nStatistics for %s:\n", $system);
+		$SRV{$system}->Report($SRV{$system}->StatPrint());
+		$SRV{$system}->SendReport();
 	} elsif ($CMD eq "download") {
 		$SRV{$system}->Download();
 	} elsif ($CMD eq "ksinstall") {

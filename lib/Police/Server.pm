@@ -19,6 +19,7 @@ use MIME::Base64 qw(decode_base64 encode_base64);
 use Sys::Hostname;
 use Fcntl qw/:seek/;
 use IPC::Open3;
+use Cwd;
 
 
 #use File::Glob ':globally';
@@ -74,7 +75,9 @@ my %STATSDEF = (
 	'files_server'    => [ 'd',   'Server files',         120 ],
 	'files_same'      => [ 'd',   'Same files',           130 ],
 	'files_differend' => [ 'd',   'Differend files',      140 ],
-	'files_skipped'   => [ 'd',   'Skipped files',        150 ],
+	'files_missed'    => [ 'd',   'Missed files',         160 ],
+	'files_dwelled'   => [ 'd',   'Dwelled files',        170 ],
+	'files_skipped'   => [ 'd',   'Skipped files',        180 ],
 	'time_client'     => [ 't',   'Client scan time',     210 ],
 	'time_server'     => [ 't',   'Server scan time',     220 ],
 	'time_diff'       => [ 't',   'Diff analyzing time',  240 ],
@@ -115,7 +118,7 @@ sub new {
 		$class->{Log} = $params{Log};
 	}
 
-	$class->{Log}->Prefix($hostid.": ");
+#	$class->{Log}->Prefix($hostid.": ");
 
 	# set base dir
 	$class->{CfgDir} = defined($params{CfgDir}) ? $params{CfgDir} : "/etc/police/";
@@ -140,7 +143,10 @@ sub new {
 			$class->{Log}->Error("ERR can not create directory %s ($!) ", $class->{WorkDir});
 			return undef;
 		}
-	} 
+	}
+
+	# get current directory
+	$class->{CurrDir} = cwd(); 
 
 	my @paths = $class->{Config}->GetVal("path");
 	$class->{PathsDef} = [ @paths ];
@@ -250,7 +256,17 @@ sub HandleXmlChar {
 
 sub StatSet {
 	my ($self, $item, $val) = @_;
-	$self->{Statistics}->{$item} = $val;
+
+	# check id data type is defined for item, if not the default type (s) is being used
+	if (defined($STATSDEF{$item}->[0]) && $STATSDEF{$item}->[0] eq 't') {
+		$val = time() if (!defined($val));
+		my %stat;
+		$stat{InitTime} = $val;
+		$self->{Statistics}->{$item} = \%stat;
+	} else {
+		$val = 0 if (!defined($val));
+		$self->{Statistics}->{$item} = $val;
+	}
 }
 
 =head2 StatAdd
@@ -265,7 +281,7 @@ sub StatAdd {
 
 	# check id data type is defined for item, if not the default type (s) is being used
 	my $type = "s";
-	if (defined($STATSDEF{$item})) {
+	if (defined($STATSDEF{$item}->[0])) {
 		$type = $STATSDEF{$item}->[0];
 	}
 
@@ -323,7 +339,7 @@ sub StatPrint {
 	foreach my $item ( sort srt keys %{$self->{Statistics}} ) {
 		# check id data type is defined for item, if not the default type (s) is being used
 		my ($type, $descr) = ('s', $item);
-		if (defined($STATSDEF{$item})) {
+		if (defined($STATSDEF{$item}->[0])) {
 			$type = $STATSDEF{$item}->[0];
 			$descr = $STATSDEF{$item}->[1];
 		}
@@ -360,6 +376,9 @@ sub RemoteCmd {
 		return undef;
 	}
 
+	# change the current directory
+	chdir($self->{CurrDir});
+
 	my $rcmd = sprintf("ssh -o BatchMode=yes %s \"(%s)\" ", $hostname, $cmd);
 	if (defined($input) && $input ne "") {
 		$rcmd .= sprintf(" < %s ", $input);
@@ -394,8 +413,8 @@ Connect to the host and perform scanning, fill in $seld->{ClientDb} structure
 sub ScanClient {
 	my ($self) = @_;
 
-	$self->StatAdd('time_client');
-	$self->StatAdd('time_total');
+	$self->StatSet('time_client');
+	$self->StatSet('time_total');
 
 	# prepare request for the client 
 	my $reqfile = sprintf("%s/request.xml", $self->{WorkDir} );
@@ -474,7 +493,7 @@ Perform package scanning on the server side, fill in $self->{ServerDb} structure
 sub ScanPackages {
 	my ($self) = @_;
 
-	$self->StatAdd('time_server');
+	$self->StatSet('time_server');
 
 	# clean-up the client database
 	(tied(%{$self->{ServerDb}}))->CLEAR();
@@ -816,7 +835,13 @@ sub MkDiff {
 	# + file is missing on client side
 	# - file is left over on client side
 
-	$self->StatAdd('time_diff');
+	$self->StatSet('time_diff');
+	$self->StatSet('files_client');
+	$self->StatSet('files_server');
+	$self->StatSet('files_differend');
+	$self->StatSet('files_missed');
+	$self->StatSet('files_same');
+	$self->StatSet('files_dwelled');
 
 	$self->{Log}->Progress("creating the diff report...");
 	(tied(%{$self->{DiffDb}}))->CLEAR();
