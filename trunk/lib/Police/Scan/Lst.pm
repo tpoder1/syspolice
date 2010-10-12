@@ -52,11 +52,12 @@ sub new {
 	if (defined($params{ScanHook})) {
 		$class->{ScanHook} = $params{ScanHook};
 	}
-
 	if (defined($params{FilesRef})) {
 		$class->{FilesRef} = $params{FilesRef};
 	}
-
+	if (defined($params{Parrent})) {
+		$class->{Parrent} = $params{Parrent};
+	}
 	if (defined($params{Config})) {
 		$class->{Config} = $params{Config};
 	}
@@ -79,8 +80,6 @@ sub HandleXmlBegin {
 		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
 
 		$attrs{"package"} = "lst:".$self->{'Package'};
-		$self->{FilesRef}->{$name} = { %attrs };
-		$self->{FilesRef}->{$name} = { %attrs };
 
 		if (defined($self->{ScanHook})) {
 			$self->{ScanHook}->($self, $name, \%attrs);
