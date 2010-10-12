@@ -54,11 +54,12 @@ sub new {
 	if (defined($params{ScanHook})) {
 		$class->{ScanHook} = $params{ScanHook};
 	}
-
 	if (defined($params{FilesRef})) {
 		$class->{FilesRef} = $params{FilesRef};
 	}
-
+	if (defined($params{Parrent})) {
+		$class->{Parrent} = $params{Parrent};
+	}
 	if (defined($params{Config})) {
 		$class->{Config} = $params{Config};
 	}

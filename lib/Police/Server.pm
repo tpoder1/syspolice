@@ -65,9 +65,10 @@ my %FTYPEFMT = (
 # items : type, description , order
 # available types: 
 # t      - timestamp, for this type the start date/time and duration is stored 
-#          the firist using of StatAdd stores the inital date and the second stores diff time
-#          any other use of the StatAdd stores the difference between last and previous measure
+#          the firist using of StatSet stores the inital date and the second stores diff time
+#          other use of the StatAdd stores the difference between last and previous measure
 #		   If the value is not handed ovet the actual timestamp is used. 
+# T      - pure date time including date and time
 # s      - string value (the simple tex value is stored into statistics)
 # <type> - any format which can be used in the printf function 
 my %STATSDEF = (
@@ -160,8 +161,6 @@ sub new {
 	tie %server, 'MLDBM', $class->{WorkDir}.'/server.db';
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
 	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
-	$class->{ClientDb} = \%client;
-	$class->{ServerDb} = \%server;
 	$class->{DiffDb} = \%diff;
 	$class->{Statistics} = \%statistics;
 	
@@ -172,8 +171,6 @@ sub new {
 sub DESTROY {
     my ($self) = @_;
 
-	untie  %{$self->{ClientDb}};
-	untie  %{$self->{ServerDb}};
 	untie  %{$self->{DiffDb}};
 	untie  %{$self->{Statistics}};
 	
@@ -201,11 +198,7 @@ sub HandleXmlBegin {
 		my $name = $attrs{"name"};
 		my %hash;
 		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
-		$self->{ClientDb}->{$name} = { %attrs };
-#		if ($attrs{'mode'} =~ /^d.+/) {
-			$self->{Log}->Progress("scanning the clinet... path:%s", $name);
-#		}
-#		printf "XXX: %s | %s | %s \n", $path, $element, join(" : ", %attrs);
+		$self->DbAddFile('C', $name, \%attrs);
 	}
 }
 
@@ -260,13 +253,12 @@ sub StatSet {
 	# check id data type is defined for item, if not the default type (s) is being used
 	if (defined($STATSDEF{$item}->[0]) && $STATSDEF{$item}->[0] eq 't') {
 		$val = time() if (!defined($val));
-		my %stat;
-		$stat{InitTime} = $val;
-		$self->{Statistics}->{$item} = \%stat;
+	} elsif (defined($STATSDEF{$item}->[0]) && $STATSDEF{$item}->[0] eq 'T') {
+		$val = time() if (!defined($val));
 	} else {
 		$val = 0 if (!defined($val));
-		$self->{Statistics}->{$item} = $val;
 	}
+	$self->{Statistics}->{$item} = $val;
 }
 
 =head2 StatAdd
@@ -287,15 +279,14 @@ sub StatAdd {
 
 	# the type 't' have a little bit differend behaviour
 	if ($type eq 't') {
-			$val = time()  if (!defined($val));
-			my %stat;
-			if (defined($self->{Statistics}->{$item}->{InitTime})) {
-				$stat{DiffTime} = $val - $self->{Statistics}->{$item}->{InitTime};
-			}
-			$stat{InitTime} = $val;
-			$self->{Statistics}->{$item} = \%stat;
-	} elsif ($type eq 's') {
-			$self->{Statistics}->{$item} = $val;
+		$val = time()  if (!defined($val));
+		if (defined($self->{Statistics}->{$item})) {
+			$self->{Statistics}->{$item} = $val - $self->{Statistics}->{$item};
+		} else {
+			$self->{Statistics}->{$item} = 0;
+		}
+	} elsif ($type eq 's' || $type eq 'T') {
+		$self->{Statistics}->{$item} = $val;
 	} else {
 		if (defined($self->{Statistics}->{$item})) {
 			$self->{Statistics}->{$item} += $val;
@@ -345,17 +336,63 @@ sub StatPrint {
 		}
 
 		if ($type eq 't') {
-			my ($tm, $diff) = (0,0);
-			$tm = $self->{Statistics}->{$item}->{InitTime} if (defined($self->{Statistics}->{$item}->{InitTime}));
-			$diff = $self->{Statistics}->{$item}->{DiffTime} if (defined($self->{Statistics}->{$item}->{DiffTime}));
-			$tm -= $diff;
-
-			$res .= sprintf "  %-20s : %5ds [started: %s]\n", $descr, $diff, strftime("%Y-%m-%d %H:%M", localtime($tm));
+			my $diff = $self->{Statistics}->{$item};
+			$res .= sprintf "  %-20s : %02d:%02ds\n", $descr, ($diff / 60), ($diff % 60);
+		} elsif ($type eq 'T') {
+			my $tm = $self->{Statistics}->{$item};
+			$res .= sprintf "  %-20s : %02d:%02ds\n", $descr, strftime("%Y-%m-%d %H:%S", localtime($tm));
 		} else {
 			$res .= sprintf "  %-20s : %6s\n", $descr, $self->StatGetItem($item);
 		}
 	}
 	return $res;
+}
+
+=head2 PkgScanHook
+
+This subroutine is called when the file is scanned 
+# $cmd - command to execute
+# $input - file name which shoul be used as input to execute command 
+Returns handle where the output from the client is passed or undef if the command wasn't successfull.
+
+=cut
+
+sub PkgScanHook {
+	my ($self, $file, $atts) = @_;
+
+	$self->{Parrent}->DbAddFile('S', $file, $atts);
+}
+
+=head2 DbAddFile
+
+Add file into File databas
+# $type -  Client | Server
+# $name -  file name
+# $atts -  sttributes - reference
+
+=cut
+
+sub DbAddFile {
+	my ($self, $type, $file, $atts) = @_;
+
+	my %diff;
+
+	# load current record from databse (if exists)
+	if (exists($self->{'DiffDb'}->{$file})) {
+		%diff = %{$self->{'DiffDb'}->{$file}};
+	}
+
+	if ($type eq 'S') {		# server side
+		$self->StatAdd('files_server', 1);
+		$diff{'Server'} = { %{$atts} };
+	} else {				# client side
+		$self->StatAdd('files_client', 1);
+		$diff{'Client'} = { %{$atts} };
+		$self->{Log}->Progress("scanning the client ... path:%s", $file);
+	}
+
+	# update recort in DB
+	$self->{'DiffDb'}->{$file} = \%diff;
 }
 
 =head2 RemoteCmd
@@ -406,7 +443,7 @@ sub RemoteCmd {
 
 =head2 ScanClient
 
-Connect to the host and perform scanning, fill in $seld->{ClientDb} structure 
+Connect to the host and perform scanning, fill in $seld->{DiffDb}->{Client} structure 
 
 =cut
 
@@ -415,6 +452,9 @@ sub ScanClient {
 
 	$self->StatSet('time_client');
 	$self->StatSet('time_total');
+	$self->StatSet('files_client');
+
+	(tied(%{$self->{DiffDb}}))->CLEAR();		# clear database
 
 	# prepare request for the client 
 	my $reqfile = sprintf("%s/request.xml", $self->{WorkDir} );
@@ -433,9 +473,6 @@ sub ScanClient {
 	printf REQF "\t</actions>\n";
 	printf REQF "</server>\n";
 	close REQF;
-
-	# clean-up the client database
-	(tied(%{$self->{ClientDb}}))->CLEAR();
 
 	# connect to the host and run command 
 	my $sstart = time();
@@ -494,16 +531,15 @@ sub ScanPackages {
 	my ($self) = @_;
 
 	$self->StatSet('time_server');
+	$self->StatSet('files_server');
 
 	# clean-up the client database
-	(tied(%{$self->{ServerDb}}))->CLEAR();
-
 	my %scan;
 
-	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
-	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config=> $self->{Config}, FilesRef => \%{$self->{ServerDb}});
+	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
 
 #	$scan{'dir'}->SetPathsDef($self->{Config}->GetVal("path"));
 #	$scan{'rpm'}->SetPathsDef($self->{Config}->GetVal("path"));
@@ -785,7 +821,7 @@ sub DescribeFile {
 	# missing description 
 	#if (!defined($at{'mode'}) && defined($at{'nonexists'})) {
 	if (!defined($at{'mode'})) {
-		return "missing";
+		return sprintf "missing (%s)", join(':', %at);
 	}
 
 	my $type = substr($at{'mode'}, 0, 1);
@@ -836,49 +872,36 @@ sub MkDiff {
 	# - file is left over on client side
 
 	$self->StatSet('time_diff');
-	$self->StatSet('files_client');
-	$self->StatSet('files_server');
 	$self->StatSet('files_differend');
 	$self->StatSet('files_missed');
 	$self->StatSet('files_same');
 	$self->StatSet('files_dwelled');
 
 	$self->{Log}->Progress("creating the diff report...");
-	(tied(%{$self->{DiffDb}}))->CLEAR();
-	my ($ccnt, $scnt) = (0, 0);
-
-	# blend the client and the server list into ones 
-	while ( my($file, $atts) =  each  %{$self->{'ServerDb'}}) {
-		my %diff;
-		next if (defined($atts->{'nonexists'}));
-		$diff{'Server'} = { %{$atts} };
-		$self->{'DiffDb'}->{$file} = \%diff ;
-		$self->StatAdd('files_server', 1);
-		$scnt++;
-	}
-	
-	while ( my($file, $atts) =  each  %{$self->{'ClientDb'}}) {
-		my %diff;
-		if (defined($self->{'DiffDb'}->{$file})) {
-			%diff = %{$self->{'DiffDb'}->{$file}};
-		}
-		$diff{'Client'} = { %{$atts} };
-		$self->{'DiffDb'}->{$file} = \%diff;
-		$self->StatAdd('files_client', 1);
-		$ccnt++;
-	}
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
-	my $maxcnt = $scnt > $ccnt ? $scnt : $ccnt;
+	my $maxcnt = keys %{$self->{'DiffDb'}};
+
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
  
 		$self->{Log}->Progress("creating the diff report... %d%%",  $cnt++ / $maxcnt * 100);
+		my ($client, $server) = (undef, undef);
 
-		my $client =  $diff->{Client} if (defined($diff->{Client}));
-		my $server =  $diff->{Server} if (defined($diff->{Server}));
+		$client =  $diff->{Client} if (exists($diff->{Client}));
+		$server =  $diff->{Server} if (exists($diff->{Server}));
+
+		# skip files which are defined as nonexists and are not on the client side
+		if (exists($server->{'nonexists'}) && !defined($client)) {
+			next;
+		}
+		if (!defined($server) && !defined($client)) {
+			$self->{Log}->Error("Neither server nor client defined for %s", $file);
+		}
+
+#		printf "\nXXX: %s S:%s\n",  $file, Dumper(\$diff) ;
 
 		# determine file type, load flags and dterine flags to check
 		my $type = substr(defined($client) ? $client->{'mode'} : $server->{'mode'} , 0, 1);
@@ -1047,6 +1070,7 @@ sub Download {
 		return 0;
 	}
 
+	chdir($self->{CurrDir});
 	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{EdFile});
 	open FOUT, "> download.tgz";
 	while (<$hout>) {
@@ -1319,6 +1343,17 @@ sub AutoCommitFinish {
 		print $handle "</listfile>\n";
 		close $handle;
 	}
+}
+
+=head2 SyncClient
+
+Sync the client according to the server 
+
+=cut
+sub SyncClient {
+	my ($self, $filename) = @_;
+
+
 }
 
 1;
