@@ -7,6 +7,7 @@ use warnings;
 use POSIX qw(strftime setsid);
 use File::Basename;
 use Police::Log;
+use Police::Paths;
 use Police::Scan::Dir;
 use Police::Scan::Rpm;
 use Police::Scan::Tgz;
@@ -43,13 +44,6 @@ my %FLAGSMAP = (
 # the first item describes fields to compare and the secon print format for this fields
 # output format will be used in report
 # the first filed is also determine which fields will be used for compare
-#my %FTYPEMAP = (
-#   '-' => [ 'UGTMS5',  '%s:%s %10s  %s %6sB %s' ],
-#   'd' => [ 'UGTM',    '%s:%s %10s  %s' ],
-#   'l' => [ 'L',       '---> %s' ],
-#   'c' => [ 'UGMD',    '%s:%s %s' ]
-#   );
-
 my %FTYPEFMT = (
 	'-' => [ 'UGMS5',   '%s:%s  %s %6sB %s' ],
 	'd' => [ 'UGM',     '%s:%s  %s' ],
@@ -146,19 +140,21 @@ sub new {
 		}
 	}
 
+	# where the paths definition are stored
+	$class->{Paths} = Police::Paths->new();	
+	my @paths = $class->{Config}->GetVal("path");
+	foreach (@paths) {
+		$class->{Paths}->AddPath($_);
+	}
+
 	# get current directory
 	$class->{CurrDir} = cwd(); 
-
-	my @paths = $class->{Config}->GetVal("path");
-	$class->{PathsDef} = [ @paths ];
 
 	$class->{BackupFile} = $class->{WorkDir}.'/backup.tgz';
 	$class->{Config}->SetMacro("backupfile", $class->{BackupFile});
 
 	# tie some hash variables
 	my (%client, %server, %diff, %statistics);
-	tie %client, 'MLDBM', $class->{WorkDir}.'/client.db';
-	tie %server, 'MLDBM', $class->{WorkDir}.'/server.db';
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
 	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
 	$class->{DiffDb} = \%diff;
@@ -678,119 +674,6 @@ sub SendReport {
 # Diff and report part 
 #######################################################################
 
-
-# add flags into the path, compute flags to the path
-# @ arg        - flags prefix also possible (eg. "/usr", "[+M+G]/usr", "[+M-G+U+T]", "[-M+T]", ...)
-# return flags - result flags enclosed in []
-# return path  - path in clear forrmat  - if input path not defined returns undef
-#
-sub AddFlags {
-	my ($self, @args) = @_;
-
-	my $path = undef;
-	my %resflags;
-
-	# traverse all arguments
-	foreach my $arg (@args) {
-		# try to split the path and flags from arguments
-		if ($arg =~ /\[(.+)\](.*)/) {
-			if (defined($2) && $2 ne "") {
-				$path = $2;
-			}
-			my %flags = $self->GetFlags($1);
-			while (my ($flag, $val) = each %flags) {
-				$resflags{$flag} = $val;
-			}
-		} else {
-			$path = $arg;
-		}
-	}
-
-	my $sflags = "";
-	while (my ($key, $val) = each %resflags) {
-		$sflags .= sprintf("%1s%1s", $val, $key);
-	}
-
-	$sflags = "[".$sflags."]";
-
-	return ($sflags, $path);
-}
-
-
-# return hash with possitive flags set
-# @ flags - input string with flags inf ormat [+x+x...]
-# @ mask  - +      return only possive flags,
-#           -      return only negative flags,
-#           undef  return the positive and negative flags
-sub GetFlags {
-	my ($self, $flags, $mask) = @_;
-
-	my %flags;
-
-	$flags =~ s/^\[//;
-	$flags =~ s/\]$//;
-
-	my $sign = undef;
-	foreach (split(//, $flags)) {
-		# the sign symbol
-		if ($_ eq "+" || $_ eq "-") {
-			$sign = $_;
-		} else {
-			if (defined($sign) && (!defined($mask) || $sign eq $mask)) {
-				$flags{uc($_)} = $sign;
-			}
-		}
-	}
-
-	return %flags;
-}
-
-=head2 Glob2Pat
-
-Converts the shell pattern to the regexp pattern
-
-=cut
-
-sub Glob2Pat {
-	my ($self, $globstr) = @_;
-
-	my %patmap = (
-		'*' => '.*',
-		'?' => '.',
-		'[' => '[',
-		']' => ']',
-	);
-	$globstr =~ s{(.)} { $patmap{$1} || "\Q$1" }ge;
-	return '^' . $globstr . '$';
-}
-
-
-=head2 GetPathFlags
-
-Returns flags list for the particular directory
-
-=cut
-
-# return flags for particular dir
-# @ path
-# @ hashref to path definition
-# return - hash array with positive flags
-sub GetPathFlags {
-	my ($self, $path) = @_;
-
-	my $resflags = '[+UGM5TL]';
-	foreach my $flagpath (@{$self->{PathsDef}}) {
-		my ($flags, $pattern) = $self->AddFlags($flagpath);
-		$pattern = $self->Glob2Pat($pattern);
-		if ($path =~ /$pattern/) {
-			($resflags) = $self->AddFlags($resflags, $flags);
-		}
-	}
-	my %flags = $self->GetFlags($resflags, '+');
-
-	return %flags;
-}
-
 # convert value to human readable string
 sub HSize($) {
 	my ($size) = @_;
@@ -901,12 +784,12 @@ sub MkDiff {
 			$self->{Log}->Error("Neither server nor client defined for %s", $file);
 		}
 
-#		printf "\nXXX: %s S:%s\n",  $file, Dumper(\$diff) ;
-
 		# determine file type, load flags and dterine flags to check
 		my $type = substr(defined($client) ? $client->{'mode'} : $server->{'mode'} , 0, 1);
-		my %setflags = $self->GetPathFlags($file);
+
+		my %setflags = $self->{Paths}->GetPathFlags($file);
 		my $chkflags =  $FTYPEFMT{$type}->[0];
+
 		my %flags = ();
 
 		if (!defined($chkflags)) {
