@@ -35,6 +35,7 @@ client:
 		echo '#!/usr/bin/perl -w' > bin/police-client
 		cat lib/Police/Log.pm >> bin/police-client
 		cat lib/Police/Scan/Dir.pm | grep -v "use Police::" >> bin/police-client
+		cat lib/Police/Paths.pm | grep -v "use Police::" >> bin/police-client
 		cat bin/police-client-base | grep -v "use lib" | grep -v "use Police" >> bin/police-client
 		chmod +x bin/police-client
 
