@@ -11,6 +11,7 @@ use Digest::MD5  qw(md5 md5_hex md5_base64);
 #use File::Glob ':glob';
 use File::Temp qw(tempfile);
 use Police::Log;
+use Police::Paths;
 
 
 =head1 NAME
@@ -64,6 +65,10 @@ sub new {
 	if (defined($params{Config})) {
 		$class->{Config} = $params{Config};
 	}
+
+	# where the paths definition are stored
+	$class->{Paths} = Police::Paths->new(); 
+
 	return $class;
 }
 
@@ -133,136 +138,6 @@ sub Md5Sum($$) {
 
 }
 
-
-
-=head2 SetPathsDef
-
-Set paths definition 
-	@paths => list of paths in the format [+|-atts]/path where 
-
-=cut
-
-sub SetPathsDef {
-	my ($self, @paths) = @_;
-
-	$self->{PathsDef} = [ @paths ];
-}
-
-=head2 Glob2Pat
-
-Converts the shell pattern to the regexp pattern
-
-=cut
-
-sub Glob2Pat {
-    my ($self, $globstr) = @_;
-
-    my %patmap = (
-        '*' => '.*',
-        '?' => '.',
-        '[' => '[',
-        ']' => ']',
-    );
-    $globstr =~ s{(.)} { $patmap{$1} || "\Q$1" }ge;
-    return '^' . $globstr . '$';
-}
-
-# add flags into the path, compute flags to the path
-# @ arg        - flags prefix also possible (eg. "/usr", "[+M+G]/usr", "[+M-G+U+T]", "[-M+T]", ...)
-# return flags - result flags enclosed in []
-# return path  - path in clear forrmat  - if input path not defined returns undef
-#
-sub AddFlags {
-	my ($self, @args) = @_;
-
-	my $path = undef;
-	my %resflags;
-
-	# traverse all arguments
-	foreach my $arg (@args) {
-		# try to split the path and flags from arguments
-		if ($arg =~ /\[(.+)\](.*)/) {
-			if (defined($2) && $2 ne "") {
-				$path = $2;
-			}
-			my %flags = $self->GetFlags($1);
-			while (my ($flag, $val) = each %flags) {
-				$resflags{$flag} = $val;
-			}
-		} else {
-			$path = $arg;
-		}
-	}
-
-	my $sflags = "";
-	while (my ($key, $val) = each %resflags) {
-		$sflags .= sprintf("%1s%1s", $val, $key);
-	}
-
-	$sflags = "[".$sflags."]";
-
-	return ($sflags, $path);
-}
-
-
-# return hash with possitive flags set
-# @ flags - input string with flags inf ormat [+x+x...]
-# @ mask  - +      return only possive flags,
-#           -      return only negative flags,
-#           undef  return the positive and negative flags
-sub GetFlags {
-	my ($self, $flags, $mask) = @_;
-
-	my %flags;
-
-	$flags =~ s/^\[//;
-	$flags =~ s/\]$//;
-
-	my $sign = undef;
-	foreach (split(//, $flags)) {
-		# the sign symbol
-		if ($_ eq "+" || $_ eq "-") {
-			$sign = $_;
-		} else {
-			if (defined($sign) && (!defined($mask) || $sign eq $mask)) {
-				$flags{uc($_)} = $sign;
-			}
-		}
-	}
-
-	return %flags;
-}
-
-
-
-=head2 GetPathFlags
-
-Returns flags list for the particular directory  
-
-=cut
-
-# return flags for particular dir
-# @ path
-# @ hashref to path definition
-# return - hash array with positive flags
-sub GetPathFlags($) {
-	my ($self, $path) = @_;
-
-	my $resflags = '[+UGM5TL]';
-	foreach my $flagpath (@{$self->{PathsDef}}) {
-		my ($flags, $pattern) = $self->AddFlags($flagpath);
-		$pattern = $self->Glob2Pat($pattern);
-		if ($path =~ /$pattern/) {
-			($resflags) = $self->AddFlags($resflags, $flags);
-		}
-	}
-
-	my %flags = $self->GetFlags($resflags, '+');
-
-	return %flags;
-}
-
-
 =head2 RecursiveScanDir
 
 Perform recrusive dir scanning. The method is called internally by the other functions
@@ -296,7 +171,7 @@ LOOP:
         my $file = sprintf("/%s", $rfile);
 
         # get flags
-        my %flags = $self->GetPathFlags($file);
+        my %flags = $self->{Paths}->GetPathFlags($file);
 
         # skip if no flags were set
         if (keys(%flags) == 0) {

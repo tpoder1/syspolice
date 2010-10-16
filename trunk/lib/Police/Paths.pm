@@ -4,24 +4,6 @@ package Police::Paths;
 use strict;
 use warnings;
 
-use POSIX qw(strftime setsid);
-use File::Basename;
-use Police::Log;
-use Police::Scan::Dir;
-use Police::Scan::Rpm;
-use Police::Scan::Tgz;
-use Police::Scan::Lst;
-use Data::Dumper;
-use MLDBM qw (DB_File Storable);
-use XML::Parser;
-use Mail::Send;
-use MIME::Base64 qw(decode_base64 encode_base64);
-use Sys::Hostname;
-use Fcntl qw/:seek/;
-use IPC::Open3;
-use Cwd;
-
-
 =head1 NAME
 
 Paths - the class which allows manipulate with paths and allows evaluate flags
@@ -43,13 +25,6 @@ sub new {
 	my ($self, $hostid, %params) = @_;
 	my ($class) = {};
 	bless($class);
-
-	# set log handle  or create the new one 
-	if (!defined($params{Log})) {
-		$class->{Log} = Police::Log->new();
-	} else {
-		$class->{Log} = $params{Log};
-	}
 
 	# The structure where the paths are stored. There is the follow structure:
     #   Paths = [ <pattern>, <reg_pattern>, { flags }, match_count }

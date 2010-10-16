@@ -5,9 +5,10 @@ use warnings;
 use lib '../lib';
 use Police::Scan::Dir;
 use Police::Log;
+use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2010-06-22.01";
+my $VERSION		= "2010-10-16.01";
 my $PVERSION	= "0.1";		# protocol version 
 
 my @PATHS;
@@ -65,7 +66,9 @@ my $res = $xmlhnd->parse(*STDIN, ErrorContext => 3);
 # create class CScan which perform file scanning on the file system
 my $Scan = Police::Scan::Dir->new(Log => $Log, ScanHook => \&PrintFileXML);
 
-$Scan->SetPathsDef(@PATHS);
+foreach (@PATHS) {
+	$Scan->{Paths}->AddPath($_);
+}
 
 # create the client output 
 printf "<client version=\"%s\">\n", $VERSION;
