@@ -81,6 +81,9 @@ sub HandleXmlBegin {
 
 		$attrs{"package"} = "lst:".$self->{'Package'};
 
+		# add mode for nonexists files
+		$attrs{"mode"} = "n?????????" if (exists $attrs{"nonexists"});
+
 		if (defined($self->{ScanHook})) {
 			$self->{ScanHook}->($self, $name, \%attrs);
 		}
