@@ -122,9 +122,10 @@ Returns flags list for the particular directory
 # return flags for particular dir
 # @ path
 # @ hashref to path definition
+# @ mast of flags to be returned (as simple string eg. 'ABM');
 # return - hash array with positive flags
 sub GetPathFlags {
-	my ($self, $path) = @_;
+	my ($self, $path, $mask) = @_;
 
 	my %flags = ( );
 	foreach my $ref (@{$self->{Paths}}) {
@@ -138,7 +139,10 @@ sub GetPathFlags {
 		}
 	}
 
-	foreach (keys %flags) { delete($flags{$_}) if $flags{$_} eq '-'; }
+	foreach (keys %flags) { 
+		delete($flags{$_}) if ( $flags{$_} eq '-' );
+		delete($flags{$_}) if ( defined($mask) && index($mask, $_) < 0 );
+	}
 
 	return %flags;
 }

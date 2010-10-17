@@ -120,10 +120,7 @@ foreach my $system (sort keys %SRV) {
 		$SRV{$system}->MkDiff();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "check") {
-		if ($SRV{$system}->ScanClient()) {
-			$SRV{$system}->ScanPackages();
-			$SRV{$system}->MkDiff();
-		}
+		$SRV{$system}->Check();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "statistics") {
 		$SRV{$system}->Report("\nStatistics for %s:\n", $system);

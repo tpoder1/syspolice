@@ -29,6 +29,7 @@ use Cwd;
 # flags definition
 # M,5,U,G,S,L,D,T - inconsistent value (Mode, md5, User, Group, Size, Link path, Dev id, mTime)
 my %FLAGSMAP = (
+	'N' => 'name',
 	'M' => 'mode',
 	'5' => 'md5',
 	'U' => 'user',
@@ -51,7 +52,8 @@ my %FTYPEFMT = (
 	'c' => [ 'UGMD',    '%s:%s %s' ],
 	's' => [ 'UGMS',   '%s:%s  %s %6sB' ],
 	'p' => [ 'UGMS',   '%s:%s  %s %6sB' ],
-	'b' => [ 'UGMD',   '%s:%s  %s %s' ]
+	'b' => [ 'UGMD',   '%s:%s  %s %s' ],
+	'n' => [ 'N',      '%s: nonexists' ]
 	);
 
 # the definition of the statistics, defines 
@@ -75,7 +77,7 @@ my %STATSDEF = (
 	'files_skipped'   => [ 'd',   'Skipped files',        180 ],
 	'time_client'     => [ 't',   'Client scan time',     210 ],
 	'time_server'     => [ 't',   'Server scan time',     220 ],
-	'time_diff'       => [ 't',   'Diff analyzing time',  240 ],
+	'time_report'     => [ 't',   'Report creating time', 240 ],
 	'time_total'      => [ 't',   'Total check time',     300 ]
 	);
 
@@ -387,6 +389,57 @@ sub DbAddFile {
 		$self->{Log}->Progress("scanning the client ... path:%s", $file);
 	}
 
+	# determine type and flags onfly if the fiels id not defined yet
+
+	if (!exists $diff{'Flags'}) {
+
+		# determine file type, load flags and dterine flags to check
+		my $mtype = substr(exists $diff{'Client'} ? $diff{'Client'}->{'mode'} : $diff{'Server'}->{'mode'} , 0, 1);
+		my $mtypeflags =  $FTYPEFMT{$mtype}->[0];			# flags to be check (depends on file type)
+
+		if (!defined($mtypeflags)) {
+			$self->{Log}->Error("Unknown outuput format (\$FTYPEFMT) for '%s' (file: %s)", $mtype, $file);
+			print Dumper(\%diff);
+			return;
+		}
+
+		# determine flags to be checked... (depends on path) 
+		my %flags =  $self->{Paths}->GetPathFlags($file, $mtypeflags.'A') ;
+		$diff{'Flags'} = { %flags };
+	} 
+
+	# there are no flags to chek - we'll continune with another file
+	if (keys %{$diff{'Flags'}} == 0 || (keys %{$diff{'Flags'}} == 1 && exists $diff{'Flags'}->{'A'}) ) {
+		$self->StatAdd('files_skipped', 1);
+		$diff{'Flags'} = { };
+		# update recort in DB and continue with another file
+		$self->{'DiffDb'}->{$file} = \%diff;
+		return;
+	}
+
+	# if tehere is both client and server side defined try to determine diffrence
+	if ( exists $diff{'Client'} && exists $diff{'Server'} ) {
+
+		# determine wchich attributes are differend 
+		delete($diff{'Flags'}->{'+'}) if defined $diff{'Flags'}->{'+'};
+		delete($diff{'Flags'}->{'-'}) if defined $diff{'Flags'}->{'-'};
+		foreach my $flag (keys %{$diff{'Flags'}} ) {
+			my $att = $FLAGSMAP{$flag};		# deterine the attribute name
+			if (exists($diff{'Server'}->{$att}) && exists($diff{'Client'}->{$att}) && $diff{'Server'}->{$att} eq $diff{'Client'}->{$att}) {
+				delete($diff{'Flags'}->{$flag});
+			}
+		}
+
+		# there are no differences between server and client 
+		if (keys %{$diff{'Flags'}} == 0 || (keys %{$diff{'Flags'}} == 1 && exists $diff{'Flags'}->{'A'}) ) {
+			$diff{'Flags'} = { };
+		} 
+	} elsif (!exists $diff{'Client'} && exists $diff{'Server'}) {
+		$diff{'Flags'}->{'-'} = 1;
+	} elsif (exists $diff{'Client'} && !exists $diff{'Server'}) {
+		$diff{'Flags'}->{'+'} = 1;
+	}
+
 	# update recort in DB
 	$self->{'DiffDb'}->{$file} = \%diff;
 }
@@ -434,6 +487,30 @@ sub RemoteCmd {
 
 	return ($hout, $herr, $hin);
 	
+}
+
+
+=head2 Check
+
+Perform client checks
+
+=cut
+
+sub Check {
+	my ($self) = @_;
+
+	$self->StatSet('files_differend');
+	$self->StatSet('files_missed');
+	$self->StatSet('files_same');
+	$self->StatSet('files_dwelled');
+	$self->StatSet('files_skipped');
+
+	if ($self->ScanClient()) {
+		$self->ScanPackages();
+		$self->MkReport();
+	}
+
+
 }
 
 
@@ -741,12 +818,12 @@ sub DescribeFile {
 
 
 
-=head2 MkDiff
+=head2 MkReport
 
 check serverlist and clientlist and add flags
 
 =cut
-sub MkDiff {
+sub MkReport {
 	my ($self) = @_;
 
 	# traverse client list and set a flag
@@ -754,11 +831,7 @@ sub MkDiff {
 	# + file is missing on client side
 	# - file is left over on client side
 
-	$self->StatSet('time_diff');
-	$self->StatSet('files_differend');
-	$self->StatSet('files_missed');
-	$self->StatSet('files_same');
-	$self->StatSet('files_dwelled');
+	$self->StatSet('time_report');
 
 	$self->{Log}->Progress("creating the diff report...");
 
@@ -771,97 +844,40 @@ sub MkDiff {
 		my $diff = $self->{'DiffDb'}->{$file};
  
 		$self->{Log}->Progress("creating the diff report... %d%%",  $cnt++ / $maxcnt * 100);
-		my ($client, $server) = (undef, undef);
 
-		$client =  $diff->{Client} if (exists($diff->{Client}));
-		$server =  $diff->{Server} if (exists($diff->{Server}));
+		# tehere in nothing to report
+		if (keys %{$diff->{'Flags'}} == 0) {
+			$self->StatAdd('files_same', 1);
+			next;
+		}
+
+		# add to autocommit
+		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
 
 		# skip files which are defined as nonexists and are not on the client side
-		if (exists($server->{'nonexists'}) && !defined($client)) {
-			next;
-		}
-		if (!defined($server) && !defined($client)) {
-			$self->{Log}->Error("Neither server nor client defined for %s", $file);
-		}
+		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
 
-		# determine file type, load flags and dterine flags to check
-		my $type = substr(defined($client) ? $client->{'mode'} : $server->{'mode'} , 0, 1);
-
-		my %setflags = $self->{Paths}->GetPathFlags($file);
-		my $chkflags =  $FTYPEFMT{$type}->[0];
-
-		my %flags = ();
-
-		if (!defined($chkflags)) {
-			$self->{Log}->Error("Unknown outuput format (\$FTYPEFMT) for '%s' (file: %s)", $type, $file);
-			next;
-		}
-
-		foreach ((split(//, $chkflags), 'A')) {
-			if (defined($setflags{$_})) {
-				$flags{$_} = $FLAGSMAP{$_};
-			}
-		}
-
-		# go to a next file if there are no flags to check
-		my $sf = join('', keys %flags);
-
-		if ($sf eq '' || $sf eq 'A') {
-			delete($self->{'DiffDb'}->{$file});
-			$self->StatAdd('files_skipped', 1);
-			next;
-		}
-
-		#  we are going to test 3 states 
-		# 1. the file is on both the server and the client side
-		# 2. the file is only on server side 
-		# 3.  e is only on client side 
-		if (defined($server) && defined($client)) {
-			# test which flags are differend
-			while (my ($flag, $att) = each %flags) {
-				next if ($flag eq 'A');
-				if (defined($server->{$att}) && defined($client->{$att}) && $server->{$att} eq $client->{$att}) {
-					delete($flags{$flag});
-				}
-			}
-			# remove from diffile if there are no any differences
-			my $sf = join('', keys %flags);
-			if ($sf eq '' || $sf eq 'A') {
-				delete($self->{'DiffDb'}->{$file});
-				$self->StatAdd('files_same', 1);
-				next;	# skip to an another file
-			} else {
-				$self->StatAdd('files_differend', 1);
-			}
-		} elsif (defined($server) && !defined($client)) {
-			$flags{'-'} = 'miss';
+		# update statistics
+		if (exists $diff->{'Flags'}->{'-'}) {
 			$self->StatAdd('files_missed', 1);
-		} elsif (!defined($server) && defined($client)) {
-			$flags{'+'} = 'dwell';
+		} elsif (exists $diff->{'Flags'}->{'+'}) {
 			$self->StatAdd('files_dwelled', 1);
 		} else {
-			$self->{Log}->Error("ERR file %s was not found ither client or server side", $file);
-			next;
+			$self->StatAdd('files_differend', 1);
 		}
-		
-		$self->Report("%s  [%s]\n", $file, join("", sort keys %flags));
-		$self->Report("   C %s \n", DescribeFile(%{$client})) if (defined($client));
-		$self->Report("   S %s [%s]\n", DescribeFile(%{$server}), $server->{'package'}) if (defined($server));
+
+		$self->Report("%s  [%s]\n", $file, join("", sort keys %{$diff->{'Flags'}}));
+		$self->Report("   C %s \n", DescribeFile(%{$diff->{'Client'}}) ) if exists $diff->{'Client'};
+		$self->Report("   S %s [%s]\n", DescribeFile(%{$diff->{'Server'}}), $diff->{'Server'}->{'package'} ) if exists $diff->{'Server'};
 		$self->Report("\n");
 
-#		printf "\nMacin: %s %s %d\n", $file, join("", sort keys %flags), defined($flags{'A'});
-		# process autocommit files 
-		if (defined($flags{'A'})) {
-#			printf "\n AUTOCMT: %s\n", $file;
-			$self->AutoCommitAdd($file);
-		}
 	}
 
 	$self->AutoCommitFinish();
 
 	# close total statistics
 	$self->StatAdd('time_total');
-	$self->StatAdd('time_diff');
+	$self->StatAdd('time_report');
 
 	$self->Report("\n\nStatistics:\n");
 	$self->Report($self->StatPrint());
@@ -1189,7 +1205,8 @@ sub AutoCommitAdd {
 			}
 
 			my $filename = sprintf("%s/%s-auto-commit.xml", $commitdir, strftime("%Y-%m-%dT%H:%M:%S", localtime));
-			open $handle, "> $filename";
+			$self->{CommitFile} = $filename;
+			open $handle, "> $filename.tmp";
 			$self->{CommitHandle} = $handle;
 
 			printf $handle "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
@@ -1225,6 +1242,7 @@ sub AutoCommitFinish {
 		my $handle = $self->{CommitHandle};
 		print $handle "</listfile>\n";
 		close $handle;
+		rename($self->{CommitFile}.'.tmp', $self->{CommitFile});
 	}
 }
 
