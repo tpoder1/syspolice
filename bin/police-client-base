@@ -12,7 +12,9 @@ my $VERSION		= "2010-10-16.01";
 my $PVERSION	= "0.1";		# protocol version 
 
 my @PATHS;
+my @ERROR;
 my %ACTIONS;
+my $FH = undef;
 
 ##########################################################
 # Handlers                                              #
@@ -39,6 +41,36 @@ sub client_handle_xml_begin {
 
 	$ACTIONS{'scan'} = 1 	if ($path eq 'server/actions/scan');
 	$ACTIONS{'backup'} = 1	if ($path eq 'server/actions/backup');
+	if ($path eq 'server/command') {
+		my $cmd = $attrs{'cmd'};
+		my $arg = $attrs{'arg'};
+
+		if ( $cmd eq 'get' ) {
+			close $FH if ( defined $FH );
+			open $FH, "> $arg";
+		} elsif ( $cmd eq 'chmod' || $cmd eq 'chown' ) {
+			print ("$cmd $arg");
+			print system("$cmd $arg");
+		} elsif ( $cmd eq 'link') {
+			system("ln -s -f $arg");
+		} elsif ( $cmd eq 'remove') {
+			if ( -d $arg ) {
+				rmdir($arg);
+			} else {
+				unlink($arg);
+			}
+		} else {
+			push(@ERROR, sprintf("Command %s is not supported by the client", $cmd));
+		}
+	}
+
+}
+
+sub client_handle_xml_end {
+	my ($expat, $element, %attrs ) = @_;
+	my $path = join('/', (@{$expat->{'Context'}}, $element));
+
+	print $FH $element 	if ( defined $FH && $path eq 'server/command' ) ;
 }
 
 sub client_handle_xml_char {
@@ -46,6 +78,7 @@ sub client_handle_xml_char {
 	my $path = join('/', @{$expat->{'Context'}});
 
 	push(@PATHS, $element)	if ($path eq 'server/paths/path');
+	print $FH $element 	if ( defined $FH && $path eq 'server/command' ) ;
 }
 
 
@@ -58,6 +91,7 @@ my $Log =  Police::Log->new(ShowProgress => 0);
 # parse the XML input from the server
 my $xmlhnd = new XML::Parser(Handlers => { 
 				'Start' => \&client_handle_xml_begin , 
+				'End' => \&client_handle_xml_end , 
 				'Char' => \&client_handle_xml_char 
 				});
 
