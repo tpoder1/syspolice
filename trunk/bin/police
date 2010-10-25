@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w 
+#!/usr/bin/perl -w
 
 use strict;
 use warnings; 
@@ -45,6 +45,7 @@ sub usage() {
 	printf "    getlst    : create .xml list file based on the diff from the previous run  \n";
 	printf "    commit    : commit changes in te file system (creates YYYY-MM-DD.HH.MM.SS-commit.xml list file into %%{commitdir})   \n";
 	printf "    statistics : print statistics related to system   \n";
+	printf "    sync      : sync the client according to the server  \n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
 	printf "Version: %s\n", $VERSION;
 
@@ -136,6 +137,8 @@ foreach my $system (sort keys %SRV) {
 		$SRV{$system}->GetLst();
 	} elsif ($CMD eq "commit") {
 		$SRV{$system}->Commit();
+	} elsif ($CMD eq "sync") {
+		$SRV{$system}->SyncClient();
 	} else {
 		$LOG->Error("Unknow command %s \n", $CMD);
 	}
