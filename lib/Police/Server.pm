@@ -1152,6 +1152,87 @@ sub GetLst {
 
 }
 
+=head2 SyncClient
+
+Sync client according to the server
+
+=cut
+sub SyncClient {
+	my ($self, $filename) = @_;
+
+	my $flist = $self->InitList();
+
+	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
+
+		# skip same files
+		next if ( keys %{$diff->{'Flags'}} == 0 );
+		next if ( exists $diff->{'Flags'}->{'A'} );
+		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+
+		my @cmd = ();
+		my $qfile = $file;
+		$qfile = sprintf('"%s"', $file) if ($file =~ /\s/);;
+
+		# dwelled file  - we have to remove them
+		if ( exists $diff->{'Flags'}->{'+'} ) {
+			if ($diff->{Client}->{'mode'} =~ /^d.+/) {
+				push(@cmd, ["rmdir", "", $qfile ]);	
+			} else {
+				push(@cmd, [ "rm", "", $qfile ] );	
+			}
+		# missed & differend file
+		} else {
+			if ( (exists $diff->{'Flags'}->{'-'} || exists $diff->{'Flags'}->{'5'} ) && !exists $diff->{'Flags'}->{'L'} ) {
+				if ($diff->{'Server'}->{'package'} =~ /dir:|tgz:/ ) {
+					push(@cmd, [ "get", $diff->{'Server'}->{'package'}, $qfile ] );
+				} else {
+					push(@cmd, [ "# ?", "", $qfile ] );
+				}
+			}
+			if ( exists $diff->{'Flags'}->{'U'} || exists $diff->{'Flags'}->{'G'} ) {
+				my $ugr = $diff->{'Server'}->{'user'}.":".$diff->{'Server'}->{'group'};
+				push(@cmd, [ "chown", $ugr, $qfile ] );
+			}
+			if ( exists $diff->{'Flags'}->{'M'} ) {
+				push(@cmd, [ "chmod", $diff->{'Server'}->{'mode'}, $qfile ] );
+			}
+			if ( exists $diff->{'Flags'}->{'L'} ) {
+				push(@cmd, [ "ln -s -f", $diff->{'Server'}->{'symlink'}, $qfile ] );
+			} 
+
+			if (@cmd == 0) {
+				push(@cmd, [ "#nocmd", "", $qfile ] );
+			}
+		}	
+
+		#printf $flist "%-60s   # [%s] \n", $cmd, join("", sort keys %{$diff->{'Flags'}}) ;
+		printf $flist "\n# %s \n", $file if (@cmd > 1);
+		my $pkg = "";
+		$pkg = $diff->{'Server'}->{'package'} if ( exists $diff->{'Server'} );
+		foreach (@cmd) {
+			
+			printf $flist "%-6s %-18s %-60s   # [%5s] %s \n", $_->[0], $_->[1], $_->[2],  join('', sort keys %{$diff->{'Flags'}}), $pkg;
+		}	
+		print $flist "\n" if (@cmd > 1);
+#		if (@cmd == 1) {
+#			printf $flist "%-60s   # [%s] \n", $cmd[0], join('', sort keys %{$diff->{'Flags'}}) ;
+#		} else {
+#			printf $flist "# %s [%s] \n%s\n", $file, join('', sort keys %{$diff->{'Flags'}}), join("\n", @cmd) ;
+#		}
+	}
+
+	if (!$self->EditList()) {
+		return 0;
+	}
+
+	unlink($self->{EdFile});
+	$self->{Log}->Progress("Client has been synced...\n");
+
+}
+
+
 =head2 Commit
 
 Commit changes into %{commitdir} direcotry named as YYY-MM-DD.HH.MM.SS-commit.xml
@@ -1244,17 +1325,6 @@ sub AutoCommitFinish {
 		close $handle;
 		rename($self->{CommitFile}.'.tmp', $self->{CommitFile});
 	}
-}
-
-=head2 SyncClient
-
-Sync the client according to the server 
-
-=cut
-sub SyncClient {
-	my ($self, $filename) = @_;
-
-
 }
 
 1;
