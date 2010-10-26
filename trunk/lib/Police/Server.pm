@@ -231,6 +231,9 @@ sub HandleXmlChar {
 			print $handle decode_base64($self->{BackupBuffer});
 			$self->{BackupBuffer} = undef;
 		}
+	} elsif ($path eq "client/error") {
+		chomp $char;
+		$self->{Log}->Error("CLIENT: %s", $char);
 	}
 }
 
