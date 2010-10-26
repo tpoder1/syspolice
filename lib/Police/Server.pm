@@ -231,7 +231,7 @@ sub HandleXmlChar {
 			print $handle decode_base64($self->{BackupBuffer});
 			$self->{BackupBuffer} = undef;
 		}
-	} elsif ($path eq "client/error") {
+	} elsif ($path eq "client/errors/error") {
 		chomp $char;
 		$self->{Log}->Error("CLIENT: %s", $char);
 	}
@@ -532,26 +532,59 @@ sub ScanClient {
 
 	(tied(%{$self->{DiffDb}}))->CLEAR();		# clear database
 
+	my @request = ();
+	# prepare request for the client 
+	push(@request, "\t<paths>");
+	my @paths = $self->{Config}->GetVal("path");
+	foreach (@paths) {
+		push(@request, sprintf "\t\t<path>%s</path>", $_) if(defined($_) && $_ ne "");
+	}
+	push(@request, "\t</paths>");
+	push(@request, "\t<actions>");
+	push(@request, "\t\t<scan/><backup/>");
+	push(@request, "\t</actions>");
+
+	# connect to the host and run command 
+	my $sstart = time();
+
+	$self->RequestClient(@request);
+
+	$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
+
+	$self->StatAdd('time_client');
+	return 1;
+
+	
+}
+
+=head2  RequestClient
+
+Prepare basic XML request, send to the client and parse the output
+
+=cut
+
+sub RequestClient {
+	my ($self, @requestcmd) = @_;
+
 	# prepare request for the client 
 	my $reqfile = sprintf("%s/request.xml", $self->{WorkDir} );
 	open REQF, ">$reqfile";
 	printf REQF "\n";
 	printf REQF "<server>\n";
-	printf REQF "\t<paths>\n";
-	my @paths = $self->{Config}->GetVal("path");
-	foreach (@paths) {
-		printf REQF "\t\t<path>%s</path>\n", $_ if(defined($_) && $_ ne "");
+	foreach (@requestcmd) {
+		if (/^FILE: (.+)$/) {
+			open F1, "< $1";
+			my $buf;
+			while (read(F1, $buf, 60*57)) {
+				print REQF encode_base64($buf);
+			} 
+			close F1; 
+		} else {
+			print REQF $_."\n";
+		}
 	}
-	printf REQF "\t</paths>\n";
-	printf REQF "\t<actions>\n";
-	printf REQF "\t\t<scan/>\n";
-	printf REQF "\t\t<backup/>\n";
-	printf REQF "\t</actions>\n";
 	printf REQF "</server>\n";
 	close REQF;
-
-	# connect to the host and run command 
-	my $sstart = time();
 
 	# repair XXX
 	my ($cmd) = $self->{Config}->GetVal("scancmd");
@@ -573,10 +606,7 @@ sub ScanClient {
 		eval { my $res = $xmlhnd->parse($hout, ErrorContext => 3, Self => $self ); };
 		if ($@) { 
 			$self->ErrReport("Error when parsing the client output");
-		} else {
-			$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 		}
-		
 	}
 
 	my $buf;
@@ -591,10 +621,7 @@ sub ScanClient {
 		return 0;
 	}
 
-	$self->StatAdd('time_client');
 	return 1;
-
-	
 }
 
 =head2 ScanPackages
@@ -921,7 +948,7 @@ sub EditList {
 
 	printf "Do you accept changes (y/N) ? ";
 	my $input = <STDIN> ;
-	printf "\n";
+	printf "\n\n";
 	if ( $input !~ /y|Y/ ) {
 		return 0;
 	}
@@ -935,6 +962,7 @@ sub EditList {
 	while (<$in>) {
 		chomp;
 		my ($line) = split(/#/); 
+		next if ( ! defined $line );
 		$line =~ s/\s+$//g; 		# remove spaces at the end of the string
 		if ($line ne "") {
 			printf $out "%s\n", $line;
@@ -1199,10 +1227,16 @@ sub SyncClient {
 				push(@cmd, [ "chown", $ugr, $qfile ] );
 			}
 			if ( exists $diff->{'Flags'}->{'M'} ) {
-				push(@cmd, [ "chmod", $diff->{'Server'}->{'mode'}, $qfile ] );
+				my $perm = "";	
+				if ( $diff->{'Server'}->{'mode'} =~ /.(...)(...)(...)/ ) {
+					$perm = "u=$1,g=$2,o=$3";
+				}
+				$perm =~ s/\-//g;
+
+				push(@cmd, [ "chmod", $perm, $qfile ] );
 			}
 			if ( exists $diff->{'Flags'}->{'L'} ) {
-				push(@cmd, [ "ln -s -f", $diff->{'Server'}->{'symlink'}, $qfile ] );
+				push(@cmd, [ "link", $diff->{'Server'}->{'symlink'}, $qfile ] );
 			} 
 
 			if (@cmd == 0) {
@@ -1230,7 +1264,32 @@ sub SyncClient {
 		return 0;
 	}
 
+	# prepare structures to send to the client 
+	my @request = ();
+	open F1, "< $self->{EdFile}";
+	while (<F1>) {
+		chomp;
+		my ($cmd, $arg) = split(/\s+/, $_, 2);
+
+		# we'll handle get comman in a differend way 
+		if ($cmd eq 'get') { 
+			my ($package, $file) = split(/\s+/, $arg, 2);
+			my ($ptype, $pkg) = split(/:/, $package);
+			my ($pkgdir) = $self->{Config}->GetVal("pkgdir");
+			my $origfile = sprintf "%s/%s/%s", $pkgdir, $pkg, $file;
+
+			push(@request, sprintf "<command cmd=\"%s\" arg=\"%s\">", $cmd, $file);
+
+			# read original file and create base64 output
+			push(@request, sprintf  "FILE: %s\n", $origfile);
+			push(@request, "</command>\n");
+		} else {
+			push(@request, sprintf "<command cmd=\"%s\" arg=\"%s\"/>\n", $cmd, $arg);
+		}
+	}
+
 	unlink($self->{EdFile});
+	$self->RequestClient(@request);
 	$self->{Log}->Progress("Client has been synced...\n");
 
 }
