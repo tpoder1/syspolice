@@ -49,15 +49,18 @@ sub client_handle_xml_begin {
 			close $FH if ( defined $FH );
 			open $FH, "> $arg";
 		} elsif ( $cmd eq 'chmod' || $cmd eq 'chown' ) {
-			print ("$cmd $arg");
-			print system("$cmd $arg");
+			my @errs = `$cmd $arg 2>&1`;
+			push(@ERROR, join("\n", @errs));
 		} elsif ( $cmd eq 'link') {
-			system("ln -s -f $arg");
+			my @errs = `ln -s -f $arg 2>&1`;
+			push(@ERROR, join("\n", @errs));
 		} elsif ( $cmd eq 'remove') {
 			if ( -d $arg ) {
-				rmdir($arg);
+				my $ret = rmdir($arg);
+				push(@ERROR, sprintf("Dir %s can not be deleted (%s)", $arg, $!)) if (!$ret);
 			} else {
-				unlink($arg);
+				my $ret = unlink($arg);
+				push(@ERROR, sprintf("File %s can not be deleted (%s)", $arg, $!)) if (!$ret);
 			}
 		} else {
 			push(@ERROR, sprintf("Command %s is not supported by the client", $cmd));
@@ -109,12 +112,23 @@ printf "<client version=\"%s\">\n", $VERSION;
 printf "\t<capabilites>\n";
 printf "\t\t<scan/>\n";
 printf "\t\t<backup/>\n";
+printf "\t\t<command/>\n";
 printf "\t</capabilites>\n";
 
 if (defined($ACTIONS{'scan'})) {
 	print "\t<scan>\n";
 	$Scan->ScanDir("/");
 	print "\t</scan>\n";
+}
+
+# return errors to the server
+if (@ERROR > 0) {
+	print "\t<errors>\n";
+	foreach (@ERROR) {
+		chomp;
+		printf "\t\t<error>%s</error>\n", $_ if ($_ ne "");
+	}
+	print "\t</errors>\n";
 }
 
 if (defined($ACTIONS{'backup'})) {
