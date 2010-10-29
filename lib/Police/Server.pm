@@ -234,6 +234,9 @@ sub HandleXmlChar {
 	} elsif ($path eq "client/errors/error") {
 		chomp $char;
 		$self->{Log}->Error("CLIENT: %s", $char);
+	} elsif ($path eq "client/messages/mssage") {
+		chomp $char;
+		$self->{Log}->Progress("CLIENT: %s", $char);
 	}
 }
 
@@ -1208,11 +1211,12 @@ sub SyncClient {
 
 		# dwelled file  - we have to remove them
 		if ( exists $diff->{'Flags'}->{'+'} ) {
-			if ($diff->{Client}->{'mode'} =~ /^d.+/) {
-				push(@cmd, ["rmdir", "", $qfile ]);	
-			} else {
-				push(@cmd, [ "rm", "", $qfile ] );	
-			}
+			push(@cmd, [ "remove", "", $qfile ]);	
+#			if ($diff->{Client}->{'mode'} =~ /^d.+/) {
+#				push(@cmd, [ "remove", "", $qfile ]);	
+#			} else {
+#				push(@cmd, [ "remove", "", $qfile ] );	
+#			}
 		# missed & differend file
 		} else {
 			if ( (exists $diff->{'Flags'}->{'-'} || exists $diff->{'Flags'}->{'5'} ) && !exists $diff->{'Flags'}->{'L'} ) {
