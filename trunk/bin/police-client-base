@@ -8,7 +8,7 @@ use Police::Log;
 use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2010-10-16.01";
+my $VERSION		= "2010-10-29.011";
 my $PVERSION	= "0.1";		# protocol version 
 
 my @PATHS;
@@ -44,26 +44,34 @@ sub client_handle_xml_begin {
 	if ($path eq 'server/command') {
 		my $cmd = $attrs{'cmd'};
 		my $arg = $attrs{'arg'};
+		my $error;
+
+		printf "\t<messages><message>Processing %s %s</message></messages>\n", $cmd, $arg;
 
 		if ( $cmd eq 'get' ) {
 			close $FH if ( defined $FH );
-			open $FH, "> $arg";
+			#open $FH, "| base64 -d > $arg.police";
+			open $FH, "| base64 -d -i > $arg";
 		} elsif ( $cmd eq 'chmod' || $cmd eq 'chown' ) {
 			my @errs = `$cmd $arg 2>&1`;
-			push(@ERROR, join("\n", @errs));
+			$error = join("\n", @errs);
 		} elsif ( $cmd eq 'link') {
 			my @errs = `ln -s -f $arg 2>&1`;
-			push(@ERROR, join("\n", @errs));
+			$error = join("\n", @errs);
 		} elsif ( $cmd eq 'remove') {
 			if ( -d $arg ) {
 				my $ret = rmdir($arg);
-				push(@ERROR, sprintf("Dir %s can not be deleted (%s)", $arg, $!)) if (!$ret);
+				$error = sprintf("Dir %s can not be deleted (%s)", $arg, $!) if (!$ret);
 			} else {
 				my $ret = unlink($arg);
-				push(@ERROR, sprintf("File %s can not be deleted (%s)", $arg, $!)) if (!$ret);
+				$error = sprintf("File %s can not be deleted (%s)", $arg, $!) if (!$ret);
 			}
 		} else {
-			push(@ERROR, sprintf("Command %s is not supported by the client", $cmd));
+			$error = sprintf("Command %s is not supported by the client", $cmd);
+		}
+
+		if ( defined $error ) {
+			printf "\t<errors><error>%s</error></errors>\n", $error;
 		}
 	}
 
@@ -73,7 +81,7 @@ sub client_handle_xml_end {
 	my ($expat, $element, %attrs ) = @_;
 	my $path = join('/', (@{$expat->{'Context'}}, $element));
 
-	print $FH $element 	if ( defined $FH && $path eq 'server/command' ) ;
+	close $FH if ( defined $FH && $path eq 'server/command' ) ;
 }
 
 sub client_handle_xml_char {
@@ -91,6 +99,14 @@ sub client_handle_xml_char {
 
 my $Log =  Police::Log->new(ShowProgress => 0);
 
+# create the client output 
+printf "<client version=\"%s\">\n", $VERSION;
+printf "\t<capabilites>\n";
+printf "\t\t<scan/>\n";
+printf "\t\t<backup/>\n";
+printf "\t\t<command/>\n";
+printf "\t</capabilites>\n";
+
 # parse the XML input from the server
 my $xmlhnd = new XML::Parser(Handlers => { 
 				'Start' => \&client_handle_xml_begin , 
@@ -107,13 +123,6 @@ foreach (@PATHS) {
 	$Scan->{Paths}->AddPath($_);
 }
 
-# create the client output 
-printf "<client version=\"%s\">\n", $VERSION;
-printf "\t<capabilites>\n";
-printf "\t\t<scan/>\n";
-printf "\t\t<backup/>\n";
-printf "\t\t<command/>\n";
-printf "\t</capabilites>\n";
 
 if (defined($ACTIONS{'scan'})) {
 	print "\t<scan>\n";
