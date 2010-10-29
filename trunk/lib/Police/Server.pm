@@ -884,11 +884,12 @@ sub MkReport {
 			next;
 		}
 
-		# add to autocommit
-		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
 
 		# skip files which are defined as nonexists and are not on the client side
 		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+
+		# add to autocommit
+		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
 
 		# update statistics
 		if (exists $diff->{'Flags'}->{'-'}) {
