@@ -550,14 +550,12 @@ sub ScanClient {
 	# connect to the host and run command 
 	my $sstart = time();
 
-	$self->RequestClient(@request);
+	my $ret = $self->RequestClient(@request);
 
 	$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
 
 	$self->StatAdd('time_client');
-	return 1;
-
-	
+	return $ret;
 }
 
 =head2  RequestClient
