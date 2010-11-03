@@ -22,7 +22,6 @@ use Fcntl qw/:seek/;
 use IPC::Open3;
 use Cwd;
 
-
 #use File::Glob ':globally';
 
 
@@ -485,10 +484,22 @@ sub RemoteCmd {
 	my $hin;
 	my $hout;
 	my $herr = IO::File->new_tmpfile;
-	if (! open3($hin, $hout, $herr, $rcmd)) {
+	my $pid = open3($hin, $hout, $herr, $rcmd);
+	if (! $pid ) {
 		$self->{Log}->Error("ERR can not execute command %s (%s).", $rcmd, $!); 
 		return undef;
 	}
+
+	# timeout for ssh connect XXX
+#	my $forked = fork();
+#	die "fork() failed: $!" unless defined $forked;
+#	if ( $forked == 0 ) {
+#		sleep 1200;
+#		kill(9, $pid);
+#		print "\n\n\nTIMEOUTED\n\n\n";
+#		exit;
+#	}
+
 	$self->{Log}->Progress("connecting to the host %s... done\n", $hostname); 
 
 	return ($hout, $herr, $hin);
@@ -504,6 +515,19 @@ Perform client checks
 
 sub Check {
 	my ($self) = @_;
+
+
+
+	# remove the old diff.db and statistics.db files
+	untie $self->{DiffDb};
+	untie $self->{Statistics};
+	unlink($self->{WorkDir}.'/diff.db');
+	unlink($self->{WorkDir}.'/statistics.db');
+	my (%diff, %statistics);
+	tie %diff, 'MLDBM', $self->{WorkDir}.'/diff.db';
+	tie %statistics, 'MLDBM', $self->{WorkDir}.'/statistics.db';
+	$self->{DiffDb} = \%diff;
+	$self->{Statistics} = \%statistics;
 
 	$self->StatSet('files_differend');
 	$self->StatSet('files_missed');
