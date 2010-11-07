@@ -1017,6 +1017,11 @@ sub Download {
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
+
+		# skip files which are defined as nonexists and are not on the client side
+		next if (keys %{$diff->{'Flags'}} == 0);
+		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+
 		if (defined($diff->{Client})) {
 			printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 		}
@@ -1169,6 +1174,11 @@ sub GetLst {
 	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
+
+		# skip files which are defined as nonexists and are not on the client side
+		next if (keys %{$diff->{'Flags'}} == 0);
+		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+
 		printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 	}
 
