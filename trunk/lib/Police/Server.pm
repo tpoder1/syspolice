@@ -696,13 +696,13 @@ sub ScanPackages {
 # Email and report rutines 
 #######################################################################
 
-=head2 Report
+=head2 InfoReport
 
 Add string into the report. If the SendEmail flag is set then add into report file. If not print to stdout.
 
 =cut
 
-sub Report {
+sub InfoReport {
 	my ($self, $fmt, @arg) = @_;
 
 	my $str = sprintf($fmt, @arg); 
@@ -714,6 +714,20 @@ sub Report {
 	my $handle = $self->{RepHandle};
 	print $handle $str;
 }
+
+=head2 Report
+
+Add string into the report. If the SendEmail flag is set then add into report file. If not print to stdout.
+
+=cut
+
+sub Report {
+	my ($self, $fmt, @arg) = @_;
+
+	$self->{NonEmptyReport} = 1;
+	$self->Report($fmt, @arg);
+}
+
 
 =head2 ErrReport
 
@@ -758,6 +772,13 @@ sub SendReport {
 			}
 			close $fs;
 			return; 
+		}
+
+
+		# test if the report is empty and shuld be send 
+		if (!defined($self->{NonEmptyReport}) && (defined($sendempty) && $sendempty)  ) {
+			$self->{Log}->Progress("Empty report, no data to send\n");
+			return;
 		}
 
 		my @mails = $self->{Config}->GetVal('email');
@@ -935,8 +956,8 @@ sub MkReport {
 	$self->StatAdd('time_total');
 	$self->StatAdd('time_report');
 
-	$self->Report("\n\nStatistics:\n");
-	$self->Report($self->StatPrint());
+	$self->InfoReport("\n\nStatistics:\n");
+	$self->InfoReport($self->StatPrint());
 
 	$self->{Log}->Progress("creating the diff report... done\n");
 }
