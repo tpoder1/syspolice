@@ -47,8 +47,8 @@ SysPolice is on the server organized into directory structure. The structure con
   + config/                             - configurations for systems
       + include/                        - global configurations which are included from the system configs
          + general.conf
-         + base.lst
-         + application1.lst
+         + base.pkgs
+         + application1.pkgs
       + system1
       + system2
       + system3
@@ -152,17 +152,15 @@ we can write more values on single line or we can split values to multiple lines
 *Example:*
 
 {{{
-[check]
-rpm   samba-client samba-server samba-common
+pkg:rpm   samba-client samba-server samba-common
 }}}
 
 is equivalent with:
 
 {{{
-[check]
-rpm   samba-client 
-rpm   samba-server
-rpm   saba-common
+pkg:rpm   samba-client 
+pkg:rpm   samba-server
+pkg:rpm   saba-common
 }}}
 
 
@@ -208,6 +206,7 @@ Each option could be prefixed by + or - flag. Sign '+' enable the option and '-'
 || G || check group owner ||
 || D || check major and minor device number ||
 || B || do backup this file or directory ||
+|| F || do backup this file or directory and send the diff file compared with the last backup ||
 || A || perform the autocommit operation ||
 || X || same as M5SHLUGD ||
 
