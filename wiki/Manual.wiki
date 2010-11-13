@@ -206,7 +206,7 @@ Each option could be prefixed by + or - flag. Sign '+' enable the option and '-'
 || G || check group owner ||
 || D || check major and minor device number ||
 || B || do backup this file or directory ||
-|| F || do backup this file or directory and send the diff file compared with the last backup ||
+|| F || do backup this file or directory and send the diff file compared with the last backup option F have the same meaning as FB ||
 || A || perform the autocommit operation ||
 || X || same as M5SHLUGD ||
 
