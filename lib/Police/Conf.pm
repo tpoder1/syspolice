@@ -206,6 +206,7 @@ sub load_config($$) {
 				if ($val[$_] =~ /(\[.+\])(.+)/) {
 					my ($atts, $path) = ($1, $2);
 					$atts =~ s/X/TM5SHLUGD/g;
+					$atts =~ s/F/FB/g;
 					$val[$_] = $atts.$path;
 				}
 			}

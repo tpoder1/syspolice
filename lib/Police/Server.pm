@@ -27,6 +27,10 @@ use Cwd;
 
 # flags definition
 # M,5,U,G,S,L,D,T - inconsistent value (Mode, md5, User, Group, Size, Link path, Dev id, mTime)
+# special flags 
+# A - autocommit file
+# B - perform backup on the file
+# F - send difference butween corrent and prevous backup through email
 my %FLAGSMAP = (
 	'N' => 'name',
 	'M' => 'mode',
@@ -37,7 +41,9 @@ my %FLAGSMAP = (
 	'L' => 'symlink',
 	'D' => 'dev',
 	'T' => 'mtime',
-	'A' => 'autocommit'
+	'A' => 'autocommit',
+	'B' => 'backup',
+	'F' => 'senddiff'
 	);
 
 # defines file types and output format definition
