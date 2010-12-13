@@ -8,6 +8,7 @@ use POSIX qw(strftime setsid);
 use File::Basename;
 use Police::Log;
 use Police::Paths;
+use Police::Edit;
 use Police::Scan::Dir;
 use Police::Scan::Rpm;
 use Police::Scan::Tgz;
@@ -120,6 +121,12 @@ sub new {
 		$class->{Log} = $params{Log};
 	}
 
+	# set list handle  or create the new one 
+	if (!defined($params{Edit})) {
+		$class->{Edit} = Police::Edit->new();
+	} else {
+		$class->{Edit} = $params{Edit};
+	}
 #	$class->{Log}->Prefix($hostid.": ");
 
 	# set base dir
@@ -731,7 +738,7 @@ sub Report {
 	my ($self, $fmt, @arg) = @_;
 
 	$self->{NonEmptyReport} = 1;
-	$self->Report($fmt, @arg);
+	$self->InfoReport($fmt, @arg);
 }
 
 
@@ -968,68 +975,6 @@ sub MkReport {
 	$self->{Log}->Progress("creating the diff report... done\n");
 }
 
-=head2 InitList
-
-Open handle to edit list, empty the file and set $self->{EdList}
-
-=cut
-sub InitList {
-	my ($self) = @_;
-
-	$self->{EdFile} = $self->{WorkDir}.'/EdList.'.$$;
-	open $self->{EdHandle}, "> $self->{EdFile}";
-	my $handle = $self->{EdHandle};
-	printf $handle "# All data after a hash sign (#) or empty lines will be ignored.\n";
-	printf $handle "# \n";
-
-	return $handle;
-
-}
-
-=head2 EditList
-
-Edit list and return true or false the changes has been accepted
-During editing all textt after # are removed
-
-=cut
-sub EditList {
-	my ($self) = @_;
-
-	close $self->{EdHandle};
-
-	system("vim $self->{EdFile}");
-
-	printf "Do you accept changes (y/N) ? ";
-	my $input = <STDIN> ;
-	printf "\n\n";
-	if ( $input !~ /y|Y/ ) {
-		return 0;
-	}
-	
-	# remove empty lines and data after hash 
-	my $tmpfile = $self->{EdFile}.".tmp";
-	my ($in, $out);
-	rename($self->{EdFile}, $tmpfile);
-	open $in, "< $tmpfile";
-	open $out, "> $self->{EdFile}";
-	while (<$in>) {
-		chomp;
-		my ($line) = split(/#/); 
-		next if ( ! defined $line );
-		$line =~ s/\s+$//g; 		# remove spaces at the end of the string
-		if ($line ne "") {
-			printf $out "%s\n", $line;
-		}
-	}
-	close $in;
-	close $out;
-
-	open $self->{EdHandle}, "< $self->{EdFile}";
-
-	return 1;
-}
-
-
 =head2 Download
 
 Download files which are differend to server
@@ -1039,7 +984,7 @@ Download files which are differend to server
 sub Download {
 	my ($self, @masks) = @_;
 
-	my $flist = $self->InitList();
+	my $flist = $self->{List}->InitList();
 
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
@@ -1059,14 +1004,13 @@ sub Download {
 	}
 
 	chdir($self->{CurrDir});
-	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{EdFile});
+	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{Edit}->GetEdFile($self->{HostID}));
 	open FOUT, "> download.tgz";
 	while (<$hout>) {
 		print FOUT $_;
 	}	
 	close FOUT;
 	close $hout;
-	unlink($self->{EdFile});
 }
 
 =head2 GetConfig
@@ -1215,7 +1159,7 @@ sub GetLst {
 
 	$filename = "filelist.xml" if (!defined($filename) || $filename eq "");
 
-	open FLIST, $self->{EdFile};
+	open FLIST, $self->{Edit}->GetEdFile($self->{HostID});
 	open FOUT, ">$filename";
 
 	printf FOUT "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
@@ -1241,7 +1185,6 @@ sub GetLst {
 	print FOUT "</listfile>\n";
 	close FOUT;
 	close FLIST;
-	unlink($self->{EdFile});
 	$self->{Log}->Progress("Data has been writen into %s...\n", $filename);
 
 }
@@ -1254,7 +1197,11 @@ Sync client according to the server
 sub SyncClient {
 	my ($self, $filename) = @_;
 
-	my $flist = $self->InitList();
+	my $flist = $self->{Edit}->InitList();
+
+	printf $flist "\n";
+	printf $flist "# switch to the system \n";
+	printf $flist "system %-18s  \n\n", $self->{HostId} ;
 
 	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
@@ -1313,28 +1260,24 @@ sub SyncClient {
 		my $pkg = "";
 		$pkg = $diff->{'Server'}->{'package'} if ( exists $diff->{'Server'} );
 		foreach (@cmd) {
-			
 			printf $flist "%-6s %-18s %-60s   # [%5s] %s \n", $_->[0], $_->[1], $_->[2],  join('', sort keys %{$diff->{'Flags'}}), $pkg;
 		}	
 		print $flist "\n" if (@cmd > 1);
-#		if (@cmd == 1) {
-#			printf $flist "%-60s   # [%s] \n", $cmd[0], join('', sort keys %{$diff->{'Flags'}}) ;
-#		} else {
-#			printf $flist "# %s [%s] \n%s\n", $file, join('', sort keys %{$diff->{'Flags'}}), join("\n", @cmd) ;
-#		}
 	}
 
-	if (!$self->EditList()) {
+	if (!$self->{Edit}->EditList()) {
 		return 0;
 	}
 
 	# prepare structures to send to the client 
 	my @request = ();
-	open F1, "< $self->{EdFile}";
+	my $edlist = $self->{Edit}->GetEdFile($self->{HostID});
+	open F1, "< $edlist";
 	while (<F1>) {
 		chomp;
 		my ($cmd, $arg) = split(/\s+/, $_, 2);
 
+		if ($cmd eq 'system') { next; }
 		# we'll handle get comman in a differend way 
 		if ($cmd eq 'get') { 
 			my ($package, $file) = split(/\s+/, $arg, 2);
@@ -1352,7 +1295,6 @@ sub SyncClient {
 		}
 	}
 
-	unlink($self->{EdFile});
 	$self->RequestClient(@request);
 	$self->{Log}->Progress("Client has been synced...\n");
 
