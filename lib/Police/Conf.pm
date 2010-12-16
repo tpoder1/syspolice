@@ -186,6 +186,14 @@ sub load_config($$) {
 
 		my ($key, @val) = $self->splitq($line);
 
+		my $noitem = 0;
+
+		if (defined($key) && $key eq 'no' && defined($val[0])) {
+			$key  = $val[0];
+			shift(@val);
+			$noitem = 1;
+		}
+
 		$key = lc($key);
 
 		# include file
@@ -229,12 +237,34 @@ sub load_config($$) {
 #			next;
 #		}
 
-		# add values into %CONFIG
-		if (!defined($self->{Data}->{$section}->{$key})) {
-			$self->{Data}->{$section}->{$key} = [ @val ];
+
+		if (!$noitem) {
+			# add values into %CONFIG
+			if (!defined($self->{Data}->{$section}->{$key})) {
+				$self->{Data}->{$section}->{$key} = [ @val ];
+			} else {
+				push(@{$self->{Data}->{$section}->{$key}},  @val);
+			}
 		} else {
-			push(@{$self->{Data}->{$section}->{$key}},  @val);
+			# 'no' item  - remove from the config
+			if (defined($self->{Data}->{$section}->{$key})) {
+				foreach my $val (@val) {
+					foreach my $x (0 .. @{$self->{Data}->{$section}->{$key}} - 1) {
+						if ($self->{Data}->{$section}->{$key}->[$x] eq $val) {
+							# field found - remove it 
+							splice(@{$self->{Data}->{$section}->{$key}}, $x, 1);
+							last;
+						}
+					}
+					my $num = @{$self->{Data}->{$section}->{$key}};
+		
+					delete $self->{Data}->{$section}->{$key} if @{$self->{Data}->{$section}->{$key}} == 0;
+
+				}
+			}
+			
 		}
+
 	}
 	close $fh;
 }

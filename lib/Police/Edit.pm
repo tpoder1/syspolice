@@ -57,12 +57,14 @@ Open handle to edit list, empty the file and set $self->{EdList}
 sub InitList {
 	my ($self) = @_;
 
-	open $self->{EdHandle}, "> $self->{EdFile}";
-	my $handle = $self->{EdHandle};
-	printf $handle "# All data after a hash sign (#) or empty lines will be ignored.\n";
-	printf $handle "# \n";
+	if ( ! -f $self->{EdFile} ) {
+		open $self->{EdHandle}, ">> $self->{EdFile}";
+		my $handle = $self->{EdHandle};
+		printf $handle "# All data after a hash sign (#) or empty lines will be ignored.\n";
+		printf $handle "# \n";
 
-	return $handle;
+	}
+	return $self->{EdHandle};
 
 }
 
@@ -122,15 +124,15 @@ sub GetEdFile {
 	
 	# find section for the propper system	
 
-	my $insys =  "";
+	my $insys =  "..";
 	while (<IN>) {
 		chomp ;
-		if ($_ eq /system\s+(.+)/) { 
+		if ($_ =~ /system\s+(.+)/) { 
 			$insys = $1;
 			next;
 		}
 
-		if (!defined($system) || $insys eq $system || $system eq '' || $insys eq '*' || $insys eq 'all' ) {		
+		if (!defined($system) || $insys eq $system || $insys eq '*' || $insys eq 'all' ) {		
 			print OUT $_."\n";
 		}
 	}

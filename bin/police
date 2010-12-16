@@ -5,6 +5,7 @@ use warnings;
 
 use lib '../lib';
 use lib 'lib';
+use Police::Edit; 
 use Police::Log; 
 use Police::Conf; 
 use Police::Scan::Dir; 
@@ -68,6 +69,7 @@ if ($OPTS{'p'} && $OPTS{'p'} > 0) {
 
 
 my $LOG =  Police::Log->new(ShowDebug => $OPTS{'d'}, ShowProgress => !$OPTS{'q'}, ErrStdOut => !$OPTS{'q'});
+my $EDIT =  Police::Edit->new();
 
 if (! -d $OPTS{'c'}) {
 	$LOG->Error("Can't change to directory  %s", $OPTS{'c'});
@@ -96,7 +98,7 @@ foreach my $system (glob($OPTS{'c'}."/*")) {
 	$LOG->Progress("loading the configuration for %s... ", $system);
 	$LOG->Debug(10, "loading the configuration for %s", $system);
 	#$LOG->Progress("loading the configuration... \n", $system);
-	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG);
+	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG, Edit => $EDIT );
 	delete($SYSTEMS{$system});
 }
 
@@ -138,7 +140,7 @@ foreach my $system (sort keys %SRV) {
 	} elsif ($CMD eq "commit") {
 		$SRV{$system}->Commit();
 	} elsif ($CMD eq "sync") {
-		$SRV{$system}->SyncClient();
+		$SRV{$system}->SyncClientPrepare();
 	} else {
 		$LOG->Error("Unknow command %s \n", $CMD);
 	}
@@ -147,6 +149,23 @@ foreach my $system (sort keys %SRV) {
 }
 
 $pm->wait_all_children if ($PARALLEL);
+
+
+# 2nd phase of "sync" command
+if ($CMD eq "sync") {
+	if (!$EDIT->EditList()) {
+		return 0;
+	}
+
+	foreach my $system (sort keys %SRV) {
+		next if (!defined($SRV{$system}));
+		$LOG->Prefix($system.": ") if (scalar(keys(%SRV)) > 1) ;
+		$SRV{$system}->SyncClientPerform();
+	}
+
+}
+	
+
 
 exit 0;
 
