@@ -1004,7 +1004,7 @@ sub Download {
 	}
 
 	chdir($self->{CurrDir});
-	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{Edit}->GetEdFile($self->{HostID}));
+	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{Edit}->GetEdFile($self->{HostId}));
 	open FOUT, "> download.tgz";
 	while (<$hout>) {
 		print FOUT $_;
@@ -1159,7 +1159,7 @@ sub GetLst {
 
 	$filename = "filelist.xml" if (!defined($filename) || $filename eq "");
 
-	open FLIST, $self->{Edit}->GetEdFile($self->{HostID});
+	open FLIST, $self->{Edit}->GetEdFile($self->{HostId});
 	open FOUT, ">$filename";
 
 	printf FOUT "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
@@ -1189,12 +1189,12 @@ sub GetLst {
 
 }
 
-=head2 SyncClient
+=head2 SyncClientPrepare
 
-Sync client according to the server
+Sync client according to the server - preparation part
 
 =cut
-sub SyncClient {
+sub SyncClientPrepare {
 	my ($self, $filename) = @_;
 
 	my $flist = $self->{Edit}->InitList();
@@ -1265,13 +1265,19 @@ sub SyncClient {
 		print $flist "\n" if (@cmd > 1);
 	}
 
-	if (!$self->{Edit}->EditList()) {
-		return 0;
-	}
+}
+
+=head2 SyncClientPerform
+
+Sync client according to the server - preparation part
+
+=cut
+sub SyncClientPerform {
+	my ($self) = @_;
 
 	# prepare structures to send to the client 
 	my @request = ();
-	my $edlist = $self->{Edit}->GetEdFile($self->{HostID});
+	my $edlist = $self->{Edit}->GetEdFile($self->{HostId});
 	open F1, "< $edlist";
 	while (<F1>) {
 		chomp;
