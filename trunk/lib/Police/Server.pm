@@ -220,6 +220,10 @@ sub HandleXmlChar {
 	if ($path eq "client/backup") {
 		my $handle;
 		if (!defined($self->{BackupHandle})) {
+			# rotate backup file 
+			if ( -f  $self->{BackupFile} ) {
+				rename($self->{BackupFile}, $self->{BackupFile}."-");
+			}
 			open $handle, "> $self->{BackupFile}";
 			$self->{BackupHandle} = $handle;
 			$self->{BackupReceived} = 0;
@@ -975,6 +979,25 @@ sub MkReport {
 	$self->{Log}->Progress("creating the diff report... done\n");
 }
 
+=head2 MkBkpDiffReport
+
+create the report for the backuped files 
+
+=cut
+sub MkBkpDiffReport {
+	my ($self) = @_;
+
+	my $old = tempdir();
+	my $new = tempdir();
+
+	# unpack both the old and the new archive 
+	if ( -f  $self->{BackupFile} )  {
+
+			
+	}
+
+}
+
 =head2 Download
 
 Download files which are differend to server
@@ -984,7 +1007,11 @@ Download files which are differend to server
 sub Download {
 	my ($self, @masks) = @_;
 
-	my $flist = $self->{List}->InitList();
+	my $flist = $self->{Edit}->InitList();
+
+	printf $flist "\n";
+	printf $flist "# switch to the system \n";
+	printf $flist "system %-18s  \n\n", $self->{HostId} ;
 
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
@@ -999,7 +1026,7 @@ sub Download {
 		}
 	}
 
-	if (!$self->EditList()) {
+	if (!$self->{Edit}->EditList()) {
 		return 0;
 	}
 
@@ -1140,7 +1167,11 @@ Prepare lst file based on diff from the prevous run
 sub GetLst {
 	my ($self, $filename) = @_;
 
-	my $flist = $self->InitList();
+	my $flist = $self->{Edit}->InitList();
+
+	printf $flist "\n";
+	printf $flist "# switch to the system \n";
+	printf $flist "system %-18s  \n\n", $self->{HostId} ;
 
 	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
@@ -1153,7 +1184,7 @@ sub GetLst {
 		printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 	}
 
-	if (!$self->EditList()) {
+	if (!$self->{Edit}->EditList()) {
 		return 0;
 	}
 

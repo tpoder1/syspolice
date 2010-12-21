@@ -36,8 +36,6 @@ sub usage() {
 	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $OPTS{'c'};
 	printf "    -p <num>  : perform the paraell check operation, num identifies the number of process run in concurency. This option turns on the -q and -m option   \n\n";
 	printf "Actions:   \n";
-	printf "    client    : connect to the client and perform  the scan and the backup operation  \n";
-	printf "    server    : scan server packages \n";
 	printf "    diff      : print diff (the client and server action must be run before it)  \n";
 	printf "    check     : client + server + diff action blended into one command   \n";
 	printf "    download  : download differend files from the client side   \n";
@@ -115,15 +113,11 @@ foreach my $system (sort keys %SRV) {
 
 	$LOG->Prefix($system.": ") if (scalar(keys(%SRV)) > 1) ;
 
-	if ($CMD eq "client") {
-		$SRV{$system}->ScanClient();
-	} elsif ($CMD eq "server") {
-		$SRV{$system}->ScanPackages();
+	if ($CMD eq "check") {
+		$SRV{$system}->Check();
+		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "diff") {
 		$SRV{$system}->MkDiff();
-		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
-	} elsif ($CMD eq "check") {
-		$SRV{$system}->Check();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "statistics") {
 		$SRV{$system}->Report("\nStatistics for %s:\n", $system);
