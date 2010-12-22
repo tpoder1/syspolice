@@ -22,6 +22,8 @@ use Sys::Hostname;
 use Fcntl qw/:seek/;
 use IPC::Open3;
 use Cwd;
+use File::Temp qw(tempfile tempdir tmpnam);
+
 
 #use File::Glob ':globally';
 
@@ -837,7 +839,7 @@ sub SendReport {
 		$self->{Log}->Progress("sending the report... done\n");
 	}	
 	unlink($self->{RepFile}) if defined($self->{RepFile});
-
+	$self->{RepHandle} = undef;
 }
 
 #######################################################################
@@ -987,14 +989,90 @@ create the report for the backuped files
 sub MkBkpDiffReport {
 	my ($self) = @_;
 
-	my $old = tempdir();
-	my $new = tempdir();
+	chdir($self->{CurrDir});
+
+	my ($archdir) = $self->{Config}->GetVal("archivedir");
+	if ( ! defined($archdir) || $archdir eq "") {
+		$archdir = tempdir();
+	}
+	if ( ! -d $archdir ) {
+		if (!mkdir($archdir)) {
+			$self->{Log}->Error("Can't create %s ($!). MkBkpDiffReport aborted.", $archdir);
+			return ;
+		} 
+	} 
+
+	my $new = sprintf("%s/CURRENT", $archdir);
+	my $old = sprintf("%s/%s", $archdir, strftime("%Y-%m-%d.%H%M", localtime()));
+
+	my $bkpfile = $self->{BackupFile};
+
+	# cleanup old archive 
+	system("rm -rf $new/*"); 
+	mkdir($new);
+	mkdir($old);
+
+	# the list of the files in the archive 
+	my %flist;
 
 	# unpack both the old and the new archive 
-	if ( -f  $self->{BackupFile} )  {
-
-			
+	if ( -f  $bkpfile ) {
+		open TAR, "tar xzvf $bkpfile  -C $new|";
+		while (<TAR>) { chomp ; $flist{$_} = 1; }
 	}
+	close TAR;
+	if ( -f  "$bkpfile-" ) {
+		open TAR, "tar xzvf $bkpfile-  -C $old|";
+		while (<TAR>) { chomp ; $flist{$_} = 1; }
+	}
+	close TAR;
+
+	my $tempf = tmpnam();
+
+	$self->InfoReport("Backup report\n\n");
+
+	foreach my $file  (sort keys  %flist) {
+
+		# remove / at the end of the string
+		if (substr($file, -1) eq '/') {
+			$file = substr($file, 0, -1);
+		}
+
+		my %diff;
+		if ( defined(%{$self->{'DiffDb'}->{'/'.$file}}) ) {
+			%diff = %{$self->{'DiffDb'}->{'/'.$file}};
+		} else {
+			$self->{Log}->Error("File found in the backup archive, but not found ind DiffDb (%s)", $file);
+			next;
+		}
+		
+		if ( ! -f "$new/$file" ) {
+			next if (defined($diff{'Flags'}->{'F'}));
+			$self->Report("=== Removed file: /%s\n\n", $file);
+		} elsif ( ! -f "$old/$file" ) {
+			next if (defined($diff{'Flags'}->{'F'}));
+			$self->Report("=== New file: /%s\n\n", $file);
+			open F1, "< $new/$file";
+			while (<F1>) { $self->Report("   ".$_); }
+			close F1;
+			
+		} else {
+			next if (defined($diff{'Flags'}->{'F'}));
+			my $ret = system("diff \"$old/$file\" \"$new/$file\" > $tempf") if (!defined($diff{'Flags'}->{'F'}));
+			if ($ret != 0) {
+				$self->Report("=== Diff for: /%s \n", $file);
+				open F1, "< $tempf";
+				while (<F1>) { $self->Report("   ".$_); }
+				close F1;
+				$self->Report("End of diff for /%s \n\n", $file);
+			} else {
+				unlink("$old/$file");
+			}
+		}
+				
+	}
+	# remove empty directories 
+	system("find \"$old\" -depth -empty -type d -exec rmdir {} \\;");
 
 }
 

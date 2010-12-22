@@ -116,9 +116,12 @@ foreach my $system (sort keys %SRV) {
 	if ($CMD eq "check") {
 		$SRV{$system}->Check();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
+		$SRV{$system}->MkBkpDiffReport();
+		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
 	} elsif ($CMD eq "diff") {
 		$SRV{$system}->MkDiff();
 		$SRV{$system}->SendReport($OPTS{'m'}, $OPTS{'e'});
+	} elsif ($CMD eq "backup") {
 	} elsif ($CMD eq "statistics") {
 		$SRV{$system}->Report("\nStatistics for %s:\n", $system);
 		$SRV{$system}->Report($SRV{$system}->StatPrint());
