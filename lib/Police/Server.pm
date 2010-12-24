@@ -775,6 +775,7 @@ sub SendReport {
 
 	if (defined($self->{RepFile})) {
 		close $self->{RepHandle};
+		$self->{RepHandle} = undef;
 		my $fs;
 
 		if ( -f $self->{RepFile} ) {
@@ -797,6 +798,7 @@ sub SendReport {
 		# test if the report is empty and shuld be send 
 		if (!defined($self->{NonEmptyReport}) && (defined($sendempty) && $sendempty)  ) {
 			$self->{Log}->Progress("Empty report, no data to send\n");
+			$self->{NonEmptyReport} = undef;
 			return;
 		}
 
@@ -840,6 +842,7 @@ sub SendReport {
 	}	
 	unlink($self->{RepFile}) if defined($self->{RepFile});
 	$self->{RepHandle} = undef;
+	$self->{NonEmptyReport} = undef;
 }
 
 #######################################################################
@@ -1029,7 +1032,7 @@ sub MkBkpDiffReport {
 
 	my $tempf = tmpnam();
 
-	$self->InfoReport("Backup report\n\n");
+	$self->InfoReport("Backup report:\n\n");
 
 	foreach my $file  (sort keys  %flist) {
 
@@ -1053,7 +1056,7 @@ sub MkBkpDiffReport {
 			next if (defined($diff{'Flags'}->{'F'}));
 			$self->Report("=== New file: /%s\n\n", $file);
 			open F1, "< $new/$file";
-			while (<F1>) { $self->Report("   ".$_); }
+			while (<F1>) { $self->Report($_); }
 			close F1;
 			
 		} else {
@@ -1062,7 +1065,7 @@ sub MkBkpDiffReport {
 			if ($ret != 0) {
 				$self->Report("=== Diff for: /%s \n", $file);
 				open F1, "< $tempf";
-				while (<F1>) { $self->Report("   ".$_); }
+				while (<F1>) { $self->Report($_); }
 				close F1;
 				$self->Report("End of diff for /%s \n\n", $file);
 			} else {
