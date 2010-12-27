@@ -996,7 +996,7 @@ sub MkBkpDiffReport {
 
 	my ($archdir) = $self->{Config}->GetVal("archivedir");
 	if ( ! defined($archdir) || $archdir eq "") {
-		$archdir = tempdir();
+		$archdir = tempdir( CLEANUP => 1 );
 	}
 	if ( ! -d $archdir ) {
 		if (!mkdir($archdir)) {
@@ -1048,11 +1048,15 @@ sub MkBkpDiffReport {
 			$self->{Log}->Error("File found in the backup archive, but not found ind DiffDb (%s)", $file);
 			next;
 		}
-		
-		if ( ! -f "$new/$file" ) {
+
+		if ( -l "$old/$file" ) {
+			unlink("$old/$file");
+		} elsif ( -d "$new/$file" ) {
+			# skip directory 
+		} elsif ( ! -e "$new/$file" ) {
 			next if (defined($diff{'Flags'}->{'F'}));
 			$self->Report("=== Removed file: /%s\n\n", $file);
-		} elsif ( ! -f "$old/$file" ) {
+		} elsif ( ! -e "$old/$file" ) {
 			next if (defined($diff{'Flags'}->{'F'}));
 			$self->Report("=== New file: /%s\n\n", $file);
 			open F1, "< $new/$file";
@@ -1071,6 +1075,7 @@ sub MkBkpDiffReport {
 			} else {
 				unlink("$old/$file");
 			}
+			unlink($tempf);
 		}
 				
 	}
