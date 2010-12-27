@@ -89,16 +89,18 @@ if (!defined($CMD) || $CMD eq "" || !%SYSTEMS || keys(%SYSTEMS) == 0) {
 
 my %SRV; 	# the hash where the server instances are stored 
 
+$LOG->ProgressInit("loading the configuration ##");
+
 foreach my $system (glob($OPTS{'c'}."/*")) {
 	next if ( ! -f  $system ); 
 	$system = basename($system);
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
-	$LOG->Progress("loading the configuration for %s... ", $system);
+	$LOG->ProgressStep($system);
 	$LOG->Debug(10, "loading the configuration for %s", $system);
-	#$LOG->Progress("loading the configuration... \n", $system);
 	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG, Edit => $EDIT );
 	delete($SYSTEMS{$system});
 }
+$LOG->ProgressStep("done\n");
 
 foreach (keys %SYSTEMS) {
 	next if ($_ eq 'all');
