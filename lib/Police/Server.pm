@@ -1193,7 +1193,7 @@ sub PrepareInstall {
 	my @pkgs = $self->{Config}->GetVal("pkg");
 
 	# preparing kickstart file 
-	$self->{Log}->ProgressInit("Preparing kickstart file %s", $ks);
+	$self->{Log}->ProgressInit("preparing kickstart file ##");
 	$self->{Log}->ProgressStep("working");
 	open F1, "< $kst";
 	open F2, "> $ks";
@@ -1224,6 +1224,7 @@ sub PrepareInstall {
 	close F2;
 	
 	$self->{Log}->ProgressStep("done\n");
+	$self->{Log}->Progress("kickstart has been stored into %s\n", $ks);
 
 	# preparing dir and tgz packages 
 	my ($tmpdir) = $self->{Config}->GetVal("dbdir");
@@ -1239,7 +1240,8 @@ sub PrepareInstall {
 		return;
 	}
 
-	$self->{Log}->ProgressInit("Preparing kickstart arvhive for ##");
+	$self->{Log}->ProgressInit("kickstart arvhive ##");
+	$self->{Log}->ProgressStep("preparing");
 	my %tgz;
 	$tgz{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config=> $self->{Config});
 	$tgz{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config});
@@ -1256,17 +1258,16 @@ sub PrepareInstall {
 					$self->{Log}->ProgressStep("%s:%s %s", $type, $pkg, $_);
 				}
 				close F1;
-				$self->{Log}->ProgressStep("done\n");
 			}
 		}
 	}
 
-	$self->{Log}->ProgressInit("creating output archive ##");
-	$self->{Log}->ProgressStep("working");
+	$self->{Log}->ProgressStep("tarball");
 	my $packcmd = sprintf("tar czf %s -C %s .", $ksdata, $tdir);
 	system($packcmd); 
 	system("rm -rf \"$tdir\"");
 	$self->{Log}->ProgressStep("done\n");
+	$self->{Log}->Progress("data has been stored into %s\n", $ksdata);
 
 }
 
