@@ -37,6 +37,9 @@ sub new {
 	$class->{ErrStdOut} = defined($params{ErrStdOut}) ? $params{ErrStdOut} : 0;
 	$class->{ShowProgress} = defined($params{ShowProgress}) ? $params{ShowProgress} : 1;
 
+	$class->{ProgressPos} = 50;
+	$class->{Prefix} = "";
+
 	return $class;
 }
 
@@ -129,6 +132,58 @@ sub Progress {
 		$| = $prev;	
 		$self->{PROGRESSLN} = $lmsg." ";
 	}
+}
+
+=head2 ProgressInit
+
+Initaliaze the progress bar. The position where the t
+step bat shoul be shwon can be signed as ## or ##nn where nn sets position on the screen 
+
+=cut
+
+sub ProgressInit {
+	my ($self, $msg, @par) = @_;
+
+	$self->{ProgressBase} = sprintf($msg, @par);
+
+}
+
+=head2 ProgressPos
+
+Set the progess position on the screen 
+
+=cut
+
+sub ProgressPos {
+	my ($self, $pos) = @_;
+
+	$self->{ProgressPos} = $pos;
+
+}
+
+=head2 ProgressStep
+
+Do one step on theprogress. The basic message must be set by the ProgressInit
+step bat shoul be shwon can be signed as ##
+
+=cut
+
+sub ProgressStep {
+	my ($self, $msg, @par) = @_;
+
+	my $step = sprintf($msg, @par);
+	my $progress = $self->{ProgressBase};
+
+	my $ch = " ";
+	if ($progress =~ /(.)##/) {
+		$ch = $1;
+	}
+
+	$step = $ch x ($self->{ProgressPos} - length($self->{Prefix}) - length($progress)).$step; 
+	$progress =~ s/##/$step/g;
+
+	$self->Progress($progress);
+
 }
 
 1;

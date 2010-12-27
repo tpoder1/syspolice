@@ -229,14 +229,15 @@ sub HandleXmlChar {
 			open $handle, "> $self->{BackupFile}";
 			$self->{BackupHandle} = $handle;
 			$self->{BackupReceived} = 0;
-			$self->{Log}->Progress("scanning the clinet... done\n");
+			$self->{Log}->ProgressStep("done\n");
+			$self->{Log}->ProgressInit("retreiving backup data ##"); 
 			$self->{Log}->Debug(10, "creating the backup file '%s'", $self->{BackupFile}); 
 		} else {
 			$handle = $self->{BackupHandle};
 		}
 #		printf "YYY: %s | %s | %s \n", $path, $element, join(" : ", %attrs);
 		$self->{BseackupReceived} += length($char);
-		$self->{Log}->Progress("retreiving backup data... %sB", HSize($self->{BackupReceived})); 
+		$self->{Log}->ProgressStep("%sB", HSize($self->{BackupReceived})); 
 
 		if (defined($self->{BackupBuffer})) {
 			$self->{BackupBuffer} .= $char;
@@ -410,7 +411,7 @@ sub DbAddFile {
 	} else {				# client side
 		$self->StatAdd('files_client', 1);
 		$diff{'Client'} = { %{$atts} };
-		$self->{Log}->Progress("scanning the client ... path:%s", $file);
+		$self->{Log}->ProgressStep("path:%s", $file);
 	}
 
 	# determine type and flags onfly if the fiels id not defined yet
@@ -497,13 +498,15 @@ sub RemoteCmd {
 
 	$self->{Log}->Log("Connecting to the host %s ", $hostname); 
 	$self->{Log}->Debug(10, "Conncet comand '%s'", $rcmd); 
-	$self->{Log}->Progress("connecting to the host %s... ", $hostname); 
+	$self->{Log}->ProgressInit("connecting to host %s ##", $hostname); 
+	$self->{Log}->ProgressStep("init"); 
 
 	# prepre handles 
 	my $hin;
 	my $hout;
 	my $herr = IO::File->new_tmpfile;
 	my $pid = open3($hin, $hout, $herr, $rcmd);
+	$self->{Log}->ProgressStep("connected\n"); 
 	if (! $pid ) {
 		$self->{Log}->Error("ERR can not execute command %s (%s).", $rcmd, $!); 
 		return undef;
@@ -519,7 +522,6 @@ sub RemoteCmd {
 #		exit;
 #	}
 
-	$self->{Log}->Progress("connecting to the host %s... done\n", $hostname); 
 
 	return ($hout, $herr, $hin);
 	
@@ -637,6 +639,7 @@ sub RequestClient {
 	}
 	my ($hout, $herr) = $self->RemoteCmd($cmd, $reqfile);
 
+	$self->{Log}->ProgressInit("scanning the client ##");
 
 	if (defined($hout)) { 
 		sleep(2);
@@ -691,20 +694,21 @@ sub ScanPackages {
 #	$scan{'dir'}->SetPathsDef($self->{Config}->GetVal("path"));
 #	$scan{'rpm'}->SetPathsDef($self->{Config}->GetVal("path"));
 
+	$self->{Log}->ProgressInit("scanning packages ##");
 	my @dirpkgs = $self->{Config}->GetVal("pkg");
 	foreach (@dirpkgs) {
 		my ($type, $pkg) = split(/:/, $_);
 
 		if (defined($scan{$type})) {
-			$self->{Log}->Progress("scanning packages... %s:%s", $type, $pkg);
+			$self->{Log}->ProgressStep("%s:%s", $type, $pkg);
 			$scan{$type}->ScanPkg($pkg);
 		# unknown package type 
 		} else {
 			$self->{Log}->Error("ERR unknown the package type %s:%s", $type, $pkg); 
 		}
-		$self->{Log}->Progress("scanning packages... done");
 #		$self->{Log}->Debug(10, "Conncet comand %s", $cmd); 
 	}
+	$self->{Log}->ProgressStep("done\n");
 
 	$self->StatAdd('time_server');
 #	$self->{Log}->Log("Host %s scanned in %d secs", $self->{HostId}, time() - $sstart); 
@@ -795,9 +799,11 @@ sub SendReport {
 		}
 
 
+		$self->{Log}->ProgressInit("sending the report ##");
+
 		# test if the report is empty and shuld be send 
 		if (!defined($self->{NonEmptyReport}) && (defined($sendempty) && $sendempty)  ) {
-			$self->{Log}->Progress("Empty report, no data to send\n");
+			$self->{Log}->ProgressStep("empty,skipped\n");
 			$self->{NonEmptyReport} = undef;
 			return;
 		}
@@ -814,12 +820,12 @@ sub SendReport {
 		my ($from) = $self->{Config}->GetVal("mailfrom"); 
 
 		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if (!defined($subject) || $subject eq "");
-		$lines = 4000 if (!defined($lines) || $lines eq "");
+		$lines = 8000 if (!defined($lines) || $lines eq "");
 
 		my %rcpts;
 		foreach my $mail (@mails) {	
 			next if (defined($rcpts{$mail}));
-			$self->{Log}->Progress("sending the report... recipient:%s", $mail);
+			$self->{Log}->ProgressStep($mail);
 
 			my  $msg = Mail::Send->new(Subject => $subject, To => $mail);
 			$msg->set('From', $from) if (!defined($from) || $from ne "");
@@ -838,7 +844,7 @@ sub SendReport {
 		}
 
 		close $fs;
-		$self->{Log}->Progress("sending the report... done\n");
+		$self->{Log}->ProgressStep("done\n");
 	}	
 	unlink($self->{RepFile}) if defined($self->{RepFile});
 	$self->{RepHandle} = undef;
@@ -931,7 +937,8 @@ sub MkReport {
 
 	$self->StatSet('time_report');
 
-	$self->{Log}->Progress("creating the diff report...");
+	$self->{Log}->ProgressInit("creating the diff report ##");
+	$self->{Log}->ProgressStep("init");
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
@@ -941,7 +948,7 @@ sub MkReport {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
  
-		$self->{Log}->Progress("creating the diff report... %d%%",  $cnt++ / $maxcnt * 100);
+		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
 
 		# tehere in nothing to report
 		if (keys %{$diff->{'Flags'}} == 0) {
@@ -981,7 +988,7 @@ sub MkReport {
 	$self->InfoReport("\n\nStatistics:\n");
 	$self->InfoReport($self->StatPrint());
 
-	$self->{Log}->Progress("creating the diff report... done\n");
+	$self->{Log}->ProgressStep("done\n");
 }
 
 =head2 MkBkpDiffReport
@@ -1095,6 +1102,13 @@ sub Download {
 
 	my $flist = $self->{Edit}->InitList();
 
+	$self->{Log}->ProgressInit("preparing data ##");
+	$self->{Log}->ProgressStep("init");
+
+	# traverse all files from both the client and the side
+	my $cnt = 0;
+	my $maxcnt = keys %{$self->{'DiffDb'}};
+
 	printf $flist "\n";
 	printf $flist "# switch to the system \n";
 	printf $flist "system %-18s  \n\n", $self->{HostId} ;
@@ -1102,6 +1116,8 @@ sub Download {
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
+
+		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
 
 		# skip files which are defined as nonexists and are not on the client side
 		next if (keys %{$diff->{'Flags'}} == 0);
@@ -1112,18 +1128,25 @@ sub Download {
 		}
 	}
 
+	$self->{Log}->ProgressStep("done\n");
+
 	if (!$self->{Edit}->EditList()) {
 		return 0;
 	}
 
 	chdir($self->{CurrDir});
 	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{Edit}->GetEdFile($self->{HostId}));
+	$self->{Log}->ProgressInit("downloading data ##");
+	$self->{Log}->ProgressStep("process");
 	open FOUT, "> download.tgz";
 	while (<$hout>) {
 		print FOUT $_;
 	}	
 	close FOUT;
 	close $hout;
+	$self->{Log}->ProgressStep("done\n");
+	$self->{Log}->Progress("downloaded data has been stored into download.tgz\n");
+
 }
 
 =head2 GetConfig
@@ -1170,7 +1193,8 @@ sub PrepareInstall {
 	my @pkgs = $self->{Config}->GetVal("pkg");
 
 	# preparing kickstart file 
-	$self->{Log}->Progress("Preparing kickstart file %s...", $ks);
+	$self->{Log}->ProgressInit("Preparing kickstart file %s", $ks);
+	$self->{Log}->ProgressStep("working");
 	open F1, "< $kst";
 	open F2, "> $ks";
 	while (<F1>) {
@@ -1199,7 +1223,7 @@ sub PrepareInstall {
 	close F1;
 	close F2;
 	
-	$self->{Log}->Progress("Preparing kickstart file %s... done\n", $ks);
+	$self->{Log}->ProgressStep("done\n");
 
 	# preparing dir and tgz packages 
 	my ($tmpdir) = $self->{Config}->GetVal("dbdir");
@@ -1215,6 +1239,7 @@ sub PrepareInstall {
 		return;
 	}
 
+	$self->{Log}->ProgressInit("Preparing kickstart arvhive for ##");
 	my %tgz;
 	$tgz{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config=> $self->{Config});
 	$tgz{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config=> $self->{Config});
@@ -1224,23 +1249,24 @@ sub PrepareInstall {
 			my $cmd = $tgz{$type}->GetTgzCmd($pkg);
 			if (defined($cmd)) {
 				my $fcmd = sprintf("%s | tar xzvf - --numeric-owner  ", $cmd);
-				$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s...", $type, $pkg);
+				$self->{Log}->ProgressStep("%s:%s", $type, $pkg);
 				open F1, "$fcmd 2>&1 | "; 
 				while (<F1>) {
 					chomp;
-					$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s... %s", $type, $pkg, $_);
+					$self->{Log}->ProgressStep("%s:%s %s", $type, $pkg, $_);
 				}
 				close F1;
-				$self->{Log}->Progress("Preparing kickstart arvhive for %s:%s... done\n", $type, $pkg);
+				$self->{Log}->ProgressStep("done\n");
 			}
 		}
 	}
 
-	$self->{Log}->Progress("Creating output archive %s...", $ksdata);
+	$self->{Log}->ProgressInit("creating output archive ##");
+	$self->{Log}->ProgressStep("working");
 	my $packcmd = sprintf("tar czf %s -C %s .", $ksdata, $tdir);
 	system($packcmd); 
 	system("rm -rf \"$tdir\"");
-	$self->{Log}->Progress("Creating output archive %s... done\n", $ksdata);
+	$self->{Log}->ProgressStep("done\n");
 
 }
 
@@ -1253,6 +1279,13 @@ Prepare lst file based on diff from the prevous run
 sub GetLst {
 	my ($self, $filename) = @_;
 
+	$self->{Log}->ProgressInit("preparing data ##");
+	$self->{Log}->ProgressStep("init");
+
+	# traverse all files from both the client and the side
+	my $cnt = 0;
+	my $maxcnt = keys %{$self->{'DiffDb'}};
+
 	my $flist = $self->{Edit}->InitList();
 
 	printf $flist "\n";
@@ -1263,6 +1296,8 @@ sub GetLst {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
+		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+
 		# skip files which are defined as nonexists and are not on the client side
 		next if (keys %{$diff->{'Flags'}} == 0);
 		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
@@ -1270,11 +1305,16 @@ sub GetLst {
 		printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
 	}
 
+	$self->{Log}->ProgressStep("done\n");
+
 	if (!$self->{Edit}->EditList()) {
 		return 0;
 	}
 
 	$filename = "filelist.xml" if (!defined($filename) || $filename eq "");
+
+	$self->{Log}->ProgressInit("creating output list file ##");
+	$self->{Log}->ProgressStep("working");
 
 	open FLIST, $self->{Edit}->GetEdFile($self->{HostId});
 	open FOUT, ">$filename";
@@ -1302,7 +1342,8 @@ sub GetLst {
 	print FOUT "</listfile>\n";
 	close FOUT;
 	close FLIST;
-	$self->{Log}->Progress("Data has been writen into %s...\n", $filename);
+	$self->{Log}->ProgressStep("done\n");
+	$self->{Log}->Progress("data has been writen into %s\n", $filename);
 
 }
 
@@ -1314,6 +1355,14 @@ Sync client according to the server - preparation part
 sub SyncClientPrepare {
 	my ($self, $filename) = @_;
 
+
+	$self->{Log}->ProgressInit("preparing data ##");
+	$self->{Log}->ProgressStep("init");
+
+	# traverse all files from both the client and the side
+	my $cnt = 0;
+	my $maxcnt = keys %{$self->{'DiffDb'}};
+
 	my $flist = $self->{Edit}->InitList();
 
 	printf $flist "\n";
@@ -1324,6 +1373,8 @@ sub SyncClientPrepare {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
+		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+		
 		# skip same files
 		next if ( keys %{$diff->{'Flags'}} == 0 );
 		next if ( exists $diff->{'Flags'}->{'A'} );
@@ -1382,6 +1433,7 @@ sub SyncClientPrepare {
 		print $flist "\n" if (@cmd > 1);
 	}
 
+	$self->{Log}->ProgressStep("done\n");
 }
 
 =head2 SyncClientPerform
