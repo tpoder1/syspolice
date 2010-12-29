@@ -18,7 +18,7 @@ use Parallel::ForkManager;
 #use Getopt;
 #use Archive::Tar;
 
-my $VERSION	= "2.1.4a";
+my $VERSION	= "2.1.5a";
 my %OPTS;
 $OPTS{'d'} = 0;
 $OPTS{'q'} = 0;

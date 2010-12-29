@@ -182,7 +182,7 @@ sub ProgressStep {
 	$step = $ch x ($self->{ProgressPos} - length($self->{Prefix}) - length($progress)).$step; 
 	$progress =~ s/##/$step/g;
 
-	$self->Progress($progress);
+	$self->Progress("%s", $progress);
 
 }
 
