@@ -948,7 +948,7 @@ sub MkReport {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
  
-		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
 		# tehere in nothing to report
 		if (keys %{$diff->{'Flags'}} == 0) {
@@ -1117,7 +1117,7 @@ sub Download {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
-		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
 		# skip files which are defined as nonexists and are not on the client side
 		next if (keys %{$diff->{'Flags'}} == 0);
@@ -1297,7 +1297,7 @@ sub GetLst {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
-		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
 		# skip files which are defined as nonexists and are not on the client side
 		next if (keys %{$diff->{'Flags'}} == 0);
@@ -1374,7 +1374,7 @@ sub SyncClientPrepare {
 	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
-		$self->{Log}->ProgressStep("%d%%%%",  $cnt++ / $maxcnt * 100);
+		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 		
 		# skip same files
 		next if ( keys %{$diff->{'Flags'}} == 0 );
