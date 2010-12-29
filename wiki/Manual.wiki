@@ -272,17 +272,17 @@ All operation in syspolice can be performed using one comman on the syspolice se
 
 As the sub-command can be one of the follow:
 
-* check : the sub-command performs the basic scan on the client system including backups, performs scan of the packages on the syspolice server and compare outputs. The report is either printed in the stdout or send via an email (depend on -m switch). 
+ * check : the sub-command performs the basic scan on the client system including backups, performs scan of the packages on the syspolice server and compare outputs. The report is either printed in the stdout or send via an email (depend on -m switch). 
 
-* getlst : Get listfile in xml format. Tahat list file can by used as the kind of the package type (pkg:lst). 
+ * getlst : Get listfile in xml format. Tahat list file can by used as the kind of the package type (pkg:lst). 
 
-* commit : Very similar to getlst. The only difference is that result is stored into %{dbdir}/commits/ direcory. The command is useful for the system where the packages are not maintained by the police system. This allows confirm changes in the files system on monitored system. 
+ * commit : Very similar to getlst. The only difference is that result is stored into %{dbdir}/commits/ direcory. The command is useful for the system where the packages are not maintained by the police system. This allows confirm changes in the files system on monitored system. 
 
-* sync : This command performs the changes on the client to update the client system according to the information obtained from the server. This command can by also used to perform command on the multiple systems or distribute new files. 
+ * sync : This command performs the changes on the client to update the client system according to the information obtained from the server. This command can by also used to perform command on the multiple systems or distribute new files. 
 
-* download : Download files that are differed from the client system. The command makes easier maintenance packages on the syspolice server. The result are stored into download.tgz file. 
+ * download : Download files that are differed from the client system. The command makes easier maintenance packages on the syspolice server. The result are stored into download.tgz file. 
 
-* ksinstall : prepare installation files for the kinckstart installation procedure. 
+ * ksinstall : prepare installation files for the kinckstart installation procedure. 
 
 == System maintenance  ==
 
