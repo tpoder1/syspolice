@@ -82,17 +82,39 @@ Some section could have a special part with a time condition. This condition tel
 The example config file is shown. 
 
 {{{
-# cat /home/sfink/config/webserver.foo.bar.cz
+# cat /police/config/webserver
 
-hostname    webserver.foo.bar.cz
-arch        i386
-email       admin@foo.vutbr.cz
+# basic includes 
+use         includes/options.cfg
+use         includes/arch-i386.cfg
+
+# hostname and an administrator email
+hostname    webserver.foo.bar.com
+email       tpoder@cis.vutbr.cz
+
+use         includes/base.pkgs
+pkg:dir     cvis-shared
+use         includes/apache.pkgs
+use         includes/mysql.pkgs
+use         includes/x11.pkgs
+use         includes/devel.pkgs
+use         includes/samba.pkgs
+use         includes/vsftpd.pkgs
+pkg:dir     linuxdcpp
+
+pkg:tgz     %{backupfile}
+pkg:lst     %{commitdir}
 
 
-pkg:rpm     /%r/rpmdir/
-pkg:dir     /%r/pkgdir/
+path        [+B]/etc/passwd
+path        [+B]/etc/shadow
+path        [+B]/etc/hosts.allow
 
-path        [-M]/var/run/
+path        [-X]/data/*
+path        [-X]/home/*
+path        [-X]/usr/src/*
+path        [-X]/var/cache/imgcache/*
+
 
 }}}
 
@@ -100,9 +122,9 @@ Each section allows to use different configuration options. Basic options are de
   
 || *option*       || *default value, example of use*                   ||  *description*   || 
 || *General options* ||
-|| basedir        || /home/police                                      || The base dir where basic police structure is placed. ||
+|| basedir        || /police                                      || The base dir where basic police structure is placed. ||
 || dbdir          || /var/police/%{system}/                            || Directory where the scan database  is stored. ||
-|| use            || Example: includes/global.lst                      || load configuration from the file and place into current position ||
+|| use            || Example: includes/base.pkgs                      || load configuration from the file and place into current position ||
 || *Options uses generaly by scanning the clinet* ||
 || hostname       || Example: webserver.foo.vutbr.cz                   || The client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
 || basearch       || i386                                              || The client's basic architecture ||
@@ -131,7 +153,7 @@ Each section allows to use different configuration options. Basic options are de
 
 
 
-The macro expansion 
+*The macro expansion* 
 The the config file you can use an macro. The macros simplyfies the complex configuration of syspolice. On any place in the config file you can you %{macro_name} syntax. 
 As the macro you can use any option from the config file. There are also some pred-defined macros. In general there is no difference between options and predefined macros. 
 The only diffrence is that predefined values can't be changed in the config file. 
@@ -141,8 +163,7 @@ The only diffrence is that predefined values can't be changed in the config file
 || system       || The current system name ||
 || datetime     || Current date and time in YYYY-MM-DD.HH:MM:SS format ||
 
-The special use *use* can by used to include content of the the other file. The manner how the file is included
-depends the format of the included file. If the file is divided into sections the sections are placed into the place
+The special directive *use* can by used to include content of the the other file. The way how the included file is expanded depends the format of the included file. If the file is divided into sections the sections are placed into the place
 where the directive is called. If the included file does not contain section all options are placed into the section 
 where directive is called. 
 
@@ -174,10 +195,10 @@ define how to check a file or a directory. Many option could be switched off or 
 by this directive. See follow example: 
 
 {{{
-01: exclude   /home* /var/log/**
-02: include   /home/cfg1/*
+01: path      [-X]/home* [-X]/var/log/**
+02: path      [+X]/home/cfg1/*
 03: path      [-M5]/var/run/test
-04: backup    /etc/sysconfig/network 
+04: path      [+B]/etc/sysconfig/network 
 }}}  
 
 In this example directories /home and /var/log/ will be excluded from the checking. Any 
@@ -206,7 +227,7 @@ Each option could be prefixed by + or - flag. Sign '+' enable the option and '-'
 || G || check group owner ||
 || D || check major and minor device number ||
 || B || do backup this file or directory ||
-|| F || do backup this file or directory and send the diff file compared with the last backup option F have the same meaning as FB ||
+|| F || do backup this file or directory and do not send the diff file compared with the last backup option F have the same meaning as FB ||
 || A || perform the autocommit operation ||
 || X || same as M5SHLUGD ||
 
@@ -239,6 +260,35 @@ so the finnal result is:
 {{{
 [-M5SHLUGD] & [+5S] = [-M+5+S-H-L-U-G-D] = *[-M+5S-HLUGD]*
 }}}     
+
+== Command options ==
+All operation in syspolice can be performed using one comman on the syspolice server. This command supports another sub-commands. The command can be used in the follow way:
+
+{{{
+
+ police [<options>] <sub-command> <system> <system> ... | all 
+
+}}}     
+
+As the sub-command can be one of the follow:
+
+* check : the sub-command performs the basic scan on the client system including backups, performs scan of the packages on the syspolice server and compare outputs. The report is either printed in the stdout or send via an email (depend on -m switch). 
+
+* getlst : Get listfile in xml format. Tahat list file can by used as the kind of the package type (pkg:lst). 
+
+* commit : Very similar to getlst. The only difference is that result is stored into %{dbdir}/commits/ direcory. The command is useful for the system where the packages are not maintained by the police system. This allows confirm changes in the files system on monitored system. 
+
+* sync : This command performs the changes on the client to update the client system according to the information obtained from the server. This command can by also used to perform command on the multiple systems or distribute new files. 
+
+* download : Download files that are differed from the client system. The command makes easier maintenance packages on the syspolice server. The result are stored into download.tgz file. 
+
+* ksinstall : prepare installation files for the kinckstart installation procedure. 
+
+== System maintenance  ==
+
+
+== Install operations ==
+
 
 == Operations ==
 
