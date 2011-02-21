@@ -40,6 +40,7 @@ sub usage() {
 	printf "    check     : client + server + diff action blended into one command   \n";
 	printf "    download  : download differend files from the client side   \n";
 	printf "    config    : show options taken from the config file(s)   \n";
+	printf "    dumpdb    : dump diff database   \n";
 	printf "    ksinstall : prepare data for system kickstart installation   \n";
 	printf "    getlst    : create .xml list file based on the diff from the previous run  \n";
 	printf "    commit    : commit changes in te file system (creates YYYY-MM-DD.HH.MM.SS-commit.xml list file into %%{commitdir})   \n";
@@ -134,6 +135,8 @@ foreach my $system (sort keys %SRV) {
 		$SRV{$system}->PrepareInstall();
 	} elsif ($CMD eq "config") {
 		$SRV{$system}->GetConfig();
+	} elsif ($CMD eq "dumpdb") {
+		$SRV{$system}->DumpDb();
 	} elsif ($CMD eq "getlst") {
 		$SRV{$system}->GetLst();
 	} elsif ($CMD eq "commit") {
