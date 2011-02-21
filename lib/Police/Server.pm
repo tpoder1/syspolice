@@ -416,7 +416,7 @@ sub DbAddFile {
 
 	# determine type and flags onfly if the fiels id not defined yet
 
-	if (!exists $diff{'Flags'}) {
+	if (!exists $diff{'FlagsToCheck'}) {
 
 		# determine file type, load flags and dterine flags to check
 		my $mtype = substr(exists $diff{'Client'} ? $diff{'Client'}->{'mode'} : $diff{'Server'}->{'mode'} , 0, 1);
@@ -430,11 +430,12 @@ sub DbAddFile {
 
 		# determine flags to be checked... (depends on path) 
 		my %flags =  $self->{Paths}->GetPathFlags($file, $mtypeflags.'A') ;
-		$diff{'Flags'} = { %flags };
+		$diff{'Flags'} = { };
+		$diff{'FlagsToCheck'} = { %flags };
 	} 
 
 	# there are no flags to chek - we'll continune with another file
-	if (keys %{$diff{'Flags'}} == 0 || (keys %{$diff{'Flags'}} == 1 && exists $diff{'Flags'}->{'A'}) ) {
+	if (keys %{$diff{'FlagsToCheck'}} == 0 || (keys %{$diff{'FlagsToCheck'}} == 1 && exists $diff{'FlagsToCheck'}->{'A'}) ) {
 		$self->StatAdd('files_skipped', 1);
 		$diff{'Flags'} = { };
 		# update recort in DB and continue with another file
@@ -446,17 +447,16 @@ sub DbAddFile {
 	if ( exists $diff{'Client'} && exists $diff{'Server'} ) {
 
 		# determine wchich attributes are differend 
-		delete($diff{'Flags'}->{'+'}) if defined $diff{'Flags'}->{'+'};
-		delete($diff{'Flags'}->{'-'}) if defined $diff{'Flags'}->{'-'};
-		foreach my $flag (keys %{$diff{'Flags'}} ) {
+		$diff{'Flags'} = { };
+		foreach my $flag (keys %{$diff{'FlagsToCheck'}} ) {
 			my $att = $FLAGSMAP{$flag};		# deterine the attribute name
-			if (exists($diff{'Server'}->{$att}) && exists($diff{'Client'}->{$att}) && $diff{'Server'}->{$att} eq $diff{'Client'}->{$att}) {
-				delete($diff{'Flags'}->{$flag});
+			if (!exists($diff{'Server'}->{$att}) || !exists($diff{'Client'}->{$att}) || $diff{'Server'}->{$att} ne $diff{'Client'}->{$att}) {
+				$diff{'Flags'}->{$flag} = '+';
 			}
 		}
 
 		# there are no differences between server and client 
-		if (keys %{$diff{'Flags'}} == 0 || (keys %{$diff{'Flags'}} == 1 && exists $diff{'Flags'}->{'A'}) ) {
+		if (keys %{$diff{'Flags'}} == 0 || (keys %{$diff{'Flags'}} == 1 && exists $diff{'FlagsToCheck'}->{'A'}) ) {
 			$diff{'Flags'} = { };
 		} 
 	} elsif (!exists $diff{'Client'} && exists $diff{'Server'}) {
@@ -464,6 +464,8 @@ sub DbAddFile {
 	} elsif (exists $diff{'Client'} && !exists $diff{'Server'}) {
 		$diff{'Flags'}->{'+'} = 1;
 	}
+
+	printf "FLAGS3: %s %s\n", $file, Dumper(\%diff);
 
 	# update recort in DB
 	$self->{'DiffDb'}->{$file} = \%diff;
@@ -1169,6 +1171,23 @@ sub GetConfig {
 	printf "\n# end config for %s\n\n", $self->{HostId};
 
 }
+
+=head2 DumpDb
+
+Dump diff database
+
+=cut
+sub DumpDb {
+	my ($self) = @_;
+
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
+
+		printf "== %s:\n", $file;
+		printf "%s\n\n", Dumper($diff);;
+	}
+}
+
 
 =head2 PrepareInstall
 
