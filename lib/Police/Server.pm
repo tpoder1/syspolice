@@ -465,8 +465,6 @@ sub DbAddFile {
 		$diff{'Flags'}->{'+'} = 1;
 	}
 
-	printf "FLAGS3: %s %s\n", $file, Dumper(\%diff);
-
 	# update recort in DB
 	$self->{'DiffDb'}->{$file} = \%diff;
 }
