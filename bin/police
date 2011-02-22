@@ -35,6 +35,7 @@ sub usage() {
 	printf "    -d <num>  : debug level, default value is 0  \n";
 	printf "    -c <dir>  : change the default base directory where configs are placed (default: %s)  \n", $OPTS{'c'};
 	printf "    -p <num>  : perform the paraell check operation, num identifies the number of process run in concurency. This option turns on the -q and -m option   \n\n";
+	printf "    -f <filter>  : filter for sync action. Filter can be specied as file pattern or package name. Regexp can be also used. \n\n";
 	printf "Actions:   \n";
 	printf "    diff      : print diff (the client and server action must be run before it)  \n";
 	printf "    check     : client + server + diff action blended into one command   \n";
@@ -45,14 +46,14 @@ sub usage() {
 	printf "    getlst    : create .xml list file based on the diff from the previous run  \n";
 	printf "    commit    : commit changes in te file system (creates YYYY-MM-DD.HH.MM.SS-commit.xml list file into %%{commitdir})   \n";
 	printf "    statistics : print statistics related to system   \n";
-	printf "    sync      : sync the client according to the server  \n";
+	printf "    sync      : sync the client according to the server. Option -f can be used with this action  \n";
 	printf "    <system>  : the config name for the system (list), can by replaced by string all    \n\n";
 	printf "Version: %s\n", $VERSION;
 
 	exit 1;	
 }
 
-if ( !getopts("?emqd:c:p:",\%OPTS) || $OPTS{'?'}) {
+if ( !getopts("?emqd:c:p:f:",\%OPTS) || $OPTS{'?'}) {
 	printf "Unknown option\n";
 	usage;
 };
@@ -98,7 +99,7 @@ foreach my $system (glob($OPTS{'c'}."/*")) {
 	next if ( ! defined($SYSTEMS{$system}) && !$SYSTEMS{'all'} );
 	$LOG->ProgressStep($system);
 	$LOG->Debug(10, "loading the configuration for %s", $system);
-	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG, Edit => $EDIT );
+	$SRV{$system} = Police::Server->new($system, CfgDir => $OPTS{'c'}, Log => $LOG, Edit => $EDIT, Filter => $OPTS{'f'} );
 	delete($SYSTEMS{$system});
 }
 $LOG->ProgressStep("done\n");

@@ -134,6 +134,9 @@ sub new {
 	# set base dir
 	$class->{CfgDir} = defined($params{CfgDir}) ? $params{CfgDir} : "/etc/police/";
 
+	# set filter for sync operations 
+	$class->{Filter} = defined($params{Filter}) ? $params{Filter} : "";
+
 	# load host config 
 	$class->{Config} = Police::Conf->new($hostid, BaseDir => $class->{CfgDir}, Log => $class->{Log} );	
 
@@ -1398,6 +1401,18 @@ sub SyncClientPrepare {
 		next if ( exists $diff->{'Flags'}->{'A'} );
 		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
 
+		# skip files that do not match filter
+		if (defined($self->{Filter}) && $self->{Filter} ne "") {
+			my $fline = "";
+			$fline .= $diff->{'Server'}->{'package'}.":" if exists $diff->{'Server'}->{'package'}; 
+			$fline .= $file;
+
+			if ($fline !~ /$self->{'Filter'}/) { # filter do not match - skip to another item
+#				printf "\nSKIPPED: $fline\n";
+				next;
+			}
+		}	
+	
 		my @cmd = ();
 		my $qfile = $file;
 		$qfile = sprintf('"%s"', $file) if ($file =~ /\s/);;
