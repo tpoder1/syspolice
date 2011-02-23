@@ -8,8 +8,8 @@ use Police::Log;
 use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2010-10-29.011";
-my $PVERSION	= "0.1";		# protocol version 
+my $VERSION		= "2011-02-23.001";
+my $PVERSION	= "0.2";		# protocol version 
 
 my @PATHS;
 my @ERROR;
@@ -57,6 +57,9 @@ sub client_handle_xml_begin {
 			$error = join("\n", @errs);
 		} elsif ( $cmd eq 'link') {
 			my @errs = `ln -s -f $arg 2>&1`;
+			$error = join("\n", @errs);
+		} elsif ( $cmd eq 'exec') {
+			my @errs = `$arg`;
 			$error = join("\n", @errs);
 		} elsif ( $cmd eq 'remove') {
 			if ( -d $arg ) {
@@ -144,8 +147,15 @@ if (defined($ACTIONS{'backup'})) {
 	print "\t<backup>\n";
 	if (defined(@{$Scan->{BackupList}})) {
 		open FB, "| tar -c -z --no-recursion --numeric-owner -T- -f- | base64";
+		#open FB, "| cat";
 		foreach (@{$Scan->{BackupList}}) {
-			printf FB "%s\n", $_;
+			my $path =  "";
+			my (@patharr) = split('/', $_);
+			foreach my $part (@patharr) {
+				$path .= "/$part";
+				printf FB "%s\n", substr($path, 1);
+			}
+#			printf FB "%s\n", $_;
 		}
 		close FB;
 	}
