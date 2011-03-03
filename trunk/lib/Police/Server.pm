@@ -455,6 +455,7 @@ sub DbAddFile {
 			my $att = $FLAGSMAP{$flag};		# deterine the attribute name
 			if (!exists($diff{'Server'}->{$att}) || !exists($diff{'Client'}->{$att}) || $diff{'Server'}->{$att} ne $diff{'Client'}->{$att}) {
 				$diff{'Flags'}->{$flag} = '+';
+				
 			}
 		}
 
@@ -464,8 +465,14 @@ sub DbAddFile {
 		} 
 	} elsif (!exists $diff{'Client'} && exists $diff{'Server'}) {
 		$diff{'Flags'}->{'-'} = 1;
+		foreach ( %{$diff{'FlagsToCheck'}} ) {
+					$diff{'Flags'}->{$_} = '+';
+		}
 	} elsif (exists $diff{'Client'} && !exists $diff{'Server'}) {
 		$diff{'Flags'}->{'+'} = 1;
+		foreach ( %{$diff{'FlagsToCheck'}} ) {
+					$diff{'Flags'}->{$_} = '+';
+		}
 	}
 
 	# update recort in DB
