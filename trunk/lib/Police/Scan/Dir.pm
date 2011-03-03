@@ -97,17 +97,17 @@ sub LsMode($$) {
 	$flag[1] = ($mode & S_IRUSR) >> 6 ? 'r' : '-';
 	$flag[2] = ($mode & S_IWUSR) >> 6 ? 'w' : '-';
 	$flag[3] = ($mode & S_IXUSR) >> 6 ? 'x' : '-';
-	$flag[3] = 's' if (($mode & S_ISUID) >> 6);
+	$flag[3] = 's' if ($mode & S_ISUID);
 
 	$flag[4] = ($mode & S_IRGRP) >> 3 ? 'r' : '-';
 	$flag[5] = ($mode & S_IWGRP) >> 3 ? 'w' : '-';
 	$flag[6] = ($mode & S_IXGRP) >> 3 ? 'x' : '-';
-	$flag[6] = 's' if (($mode & S_ISGID) >> 6);
+	$flag[6] = 's' if ($mode & S_ISGID);
 
 	$flag[7] = ($mode & S_IROTH) >> 0 ? 'r' : '-';
 	$flag[8] = ($mode & S_IWOTH) >> 0 ? 'w' : '-';
 	$flag[9] = ($mode & S_IXOTH) >> 0 ? 'x' : '-';
-	$flag[9] = 't' if (($mode & S_ISVTX) >> 0);
+	$flag[9] = 't' if ($mode & S_ISVTX);
 
 #   ($mode & S_IRGRP) >> 3;
 
