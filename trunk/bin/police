@@ -157,7 +157,7 @@ $pm->wait_all_children if ($PARALLEL);
 # 2nd phase of "sync" command
 if ($CMD eq "sync") {
 	if (!$EDIT->EditList()) {
-		return 0;
+		exit 0;
 	}
 
 	foreach my $system (sort keys %SRV) {

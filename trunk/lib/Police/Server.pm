@@ -1429,16 +1429,21 @@ sub SyncClientPrepare {
 		} else {
 			if ( (exists $diff->{'Flags'}->{'-'} || exists $diff->{'Flags'}->{'5'} ) && !exists $diff->{'Flags'}->{'L'} ) {
 				if ($diff->{'Server'}->{'package'} =~ /dir:|tgz:/ ) {
-					push(@cmd, [ "get", $diff->{'Server'}->{'package'}, $qfile ] );
+					# the theli on the server is symlink or regular file? 
+					if (exists $diff->{'Server'}->{'symlink'}) {
+						push(@cmd, [ "link", $diff->{'Server'}->{'symlink'}, $qfile ] );
+					} else {
+						push(@cmd, [ "get", $diff->{'Server'}->{'package'}, $qfile ] );
+					}
 				} else {
 					push(@cmd, [ "# ?", "", $qfile ] );
 				}
 			}
-			if ( exists $diff->{'Flags'}->{'U'} || exists $diff->{'Flags'}->{'G'} ) {
+			if ( ! exists $diff->{'Server'}->{'symlink'} && ( exists $diff->{'Flags'}->{'U'} || exists $diff->{'Flags'}->{'G'} ) ) {
 				my $ugr = $diff->{'Server'}->{'user'}.":".$diff->{'Server'}->{'group'};
 				push(@cmd, [ "chown", $ugr, $qfile ] );
 			}
-			if ( exists $diff->{'Flags'}->{'M'} ) {
+			if ( ! exists $diff->{'Server'}->{'symlink'} && exists $diff->{'Flags'}->{'M'} ) {
 				my $perm = "";	
 				if ( $diff->{'Server'}->{'mode'} =~ /.(...)(...)(...)/ ) {
 					$perm = "u=$1,g=$2,o=$3";
