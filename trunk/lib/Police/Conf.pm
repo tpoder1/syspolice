@@ -198,7 +198,10 @@ sub load_config($$) {
 
 		# include file
 		if ($key eq "use") {
-			foreach (@val) { $self->load_config($_); }
+			foreach (@val) { 
+				$_ = $self->ApplyMacro($_);
+				$self->load_config($_); 
+			}
 			next;
 		}
 
