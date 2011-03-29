@@ -809,7 +809,7 @@ sub SendReport {
 		}
 
 
-		$self->{Log}->ProgressInit("sending the report ##");
+		$self->{Log}->ProgressInit("sending the %s report ##", $self->{Config}->GetVal("action"));
 
 		# test if the report is empty and shuld be send 
 		if (!defined($self->{NonEmptyReport}) && (defined($sendempty) && $sendempty)  ) {
@@ -945,6 +945,8 @@ sub MkReport {
 	# + file is missing on client side
 	# - file is left over on client side
 
+	$self->{Config}->SetMacro("action", "diff");
+
 	$self->StatSet('time_report');
 
 	$self->{Log}->ProgressInit("creating the diff report ##");
@@ -1010,6 +1012,7 @@ sub MkBkpDiffReport {
 	my ($self) = @_;
 
 	chdir($self->{CurrDir});
+	$self->{Config}->SetMacro("action", "backup");
 
 	my ($archdir) = $self->{Config}->GetVal("archivedir");
 	if ( ! defined($archdir) || $archdir eq "") {

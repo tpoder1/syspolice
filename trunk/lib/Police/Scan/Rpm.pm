@@ -171,7 +171,7 @@ sub ScanRpm($$$) {
 
 	# check if we found any file
 	if (!defined($lastname) || $lastname eq "") {
-		$self->{Log}->Error("ERR neither RPM package %s found in %s.", $rpmname, join(", ", $self->{Config}->GetVal("rpmrepos")));
+		$self->{Log}->Error("ERR none RPM package %s has been found in %s.", $rpmname, join(", ", $self->{Config}->GetVal("rpmrepos")));
 		return 0;
 	}
 
