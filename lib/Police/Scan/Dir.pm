@@ -7,7 +7,6 @@ use POSIX qw(strftime setsid);
 use Data::Dumper;
 use File::Basename;
 use Fcntl ':mode';
-use Digest::MD5  qw(md5 md5_hex md5_base64);
 #use File::Glob ':glob';
 use File::Temp qw(tempfile);
 use Police::Log;
@@ -66,6 +65,8 @@ sub new {
 		$class->{Config} = $params{Config};
 	}
 
+	$class->{Checksum} = "md5";
+
 	# where the paths definition are stored
 	$class->{Paths} = Police::Paths->new(); 
 
@@ -123,7 +124,43 @@ sub Md5Sum($$) {
 	my ($self, $file) = @_;
 	my ($fh, $digest);
 
+	# load md5 module
+	if (!$self->{Loaded}->{MD5}) {
+		use Digest::MD5 qw(md5 md5_hex md5_base64);
+		$self->{Loaded}->{MD5} = 1;
+	}
+
 	my $ctx = Digest::MD5->new;
+	open $fh, "< $file";
+	if ($fh) {
+		my $ret = eval { $ctx->addfile(*$fh); };
+		if (defined($ret)) {
+			$digest = $ctx->hexdigest;
+		} else {
+			$digest = "*UNKNOWN*";
+		}
+	}
+
+	return $digest;
+
+}
+
+=head2 ShaSum
+
+Compute and return Sha256 sum of the file
+
+=cut
+sub ShaSum($$) {
+	my ($self, $file) = @_;
+	my ($fh, $digest);
+
+	# load md5 module
+	if (!$self->{Loaded}->{SHA}) {
+		use Digest::SHA qw(sha256 sha256_hex sha256_base64);
+		$self->{Loaded}->{SHA} = 1;
+	}
+
+	my $ctx = Digest::SHA->new(256);
 	open $fh, "< $file";
 	if ($fh) {
 		my $ret = eval { $ctx->addfile(*$fh); };
@@ -232,7 +269,15 @@ LOOP:
                 if (!(S_ISLNK($inode[2]) || S_ISBLK($inode[2]) ||
                     S_ISCHR($inode[2]) || S_ISFIFO($inode[2]) ||
                     S_ISSOCK($inode[2]))) {
-                    $ref->{'md5'}  = $self->Md5Sum($rfile) if (defined($flags{'5'}));
+					my $sum = "";
+					if (defined $self->{Checksum} && index($self->{Checksum}, "sha") != -1) {
+	                    $sum  .= $self->ShaSum($rfile) if (defined($flags{'5'}));
+					} 
+					if (defined $self->{Checksum} && index($self->{Checksum}, "md5") != -1) {
+	                    $sum  .= $self->Md5Sum($rfile) if (defined($flags{'5'}));
+					} 
+
+					$ref->{'md5'}  = $sum;
                 }
             }
         }
