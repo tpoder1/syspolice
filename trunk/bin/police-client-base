@@ -8,12 +8,13 @@ use Police::Log;
 use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2011-02-23.001";
+my $VERSION		= "2011-03-29.001";
 my $PVERSION	= "0.2";		# protocol version 
 
 my @PATHS;
 my @ERROR;
 my %ACTIONS;
+my $CHECKSUM	= "md5";		# checksum type
 my $FH = undef;
 
 ##########################################################
@@ -39,7 +40,10 @@ sub client_handle_xml_begin {
 	my ($expat, $element, %attrs ) = @_;
 	my $path = join('/', (@{$expat->{'Context'}}, $element));
 
-	$ACTIONS{'scan'} = 1 	if ($path eq 'server/actions/scan');
+	if ($path eq 'server/actions/scan') {
+		$ACTIONS{'scan'} = 1;
+		$CHECKSUM = $attrs{'checksum'}	if (defined $attrs{'checksum'} );
+	}
 	$ACTIONS{'backup'} = 1	if ($path eq 'server/actions/backup');
 	if ($path eq 'server/command') {
 		my $cmd = $attrs{'cmd'};
@@ -126,9 +130,9 @@ foreach (@PATHS) {
 	$Scan->{Paths}->AddPath($_);
 }
 
-
 if (defined($ACTIONS{'scan'})) {
 	print "\t<scan>\n";
+	$Scan->{Checksum} = $CHECKSUM;
 	$Scan->ScanDir("/");
 	print "\t</scan>\n";
 }

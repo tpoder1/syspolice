@@ -454,8 +454,11 @@ sub DbAddFile {
 		foreach my $flag (keys %{$diff{'FlagsToCheck'}} ) {
 			my $att = $FLAGSMAP{$flag};		# deterine the attribute name
 			if (!exists($diff{'Server'}->{$att}) || !exists($diff{'Client'}->{$att}) || $diff{'Server'}->{$att} ne $diff{'Client'}->{$att}) {
-				$diff{'Flags'}->{$flag} = '+';
-				
+				if ($att eq "md5") {	# for md5 comparsion try to do substring comparsion
+					$diff{'Flags'}->{$flag} = '+' if (index($diff{'Client'}->{$att}, $diff{'Server'}->{$att}) == -1);
+				} else {
+					$diff{'Flags'}->{$flag} = '+';
+				}
 			}
 		}
 
@@ -597,9 +600,13 @@ sub ScanClient {
 	foreach (@paths) {
 		push(@request, sprintf "\t\t<path>%s</path>", $_) if(defined($_) && $_ ne "");
 	}
+
+	my @checksum = $self->{Config}->GetVal("checksum");
+	@checksum = ("md5") if ($#checksum == 0);
+
 	push(@request, "\t</paths>");
 	push(@request, "\t<actions>");
-	push(@request, "\t\t<scan/><backup/>");
+	push(@request, sprintf "\t\t<scan checksum=\"%s\" /><backup/>", join(",", @checksum));
 	push(@request, "\t</actions>");
 
 	# connect to the host and run command 
@@ -696,6 +703,9 @@ sub ScanPackages {
 	# clean-up the client database
 	my %scan;
 
+    my ($checksum) = $self->{Config}->GetVal("checksum");
+    $checksum = "md5" if (!defined($checksum));
+
 	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
 	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
 	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
@@ -711,6 +721,7 @@ sub ScanPackages {
 
 		if (defined($scan{$type})) {
 			$self->{Log}->ProgressStep("%s:%s", $type, $pkg);
+			$scan{$type}->{Checksum} = $checksum;
 			$scan{$type}->ScanPkg($pkg);
 		# unknown package type 
 		} else {
