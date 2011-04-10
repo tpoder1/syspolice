@@ -62,6 +62,9 @@ sub client_handle_xml_begin {
 		} elsif ( $cmd eq 'link') {
 			my @errs = `ln -s -f $arg 2>&1`;
 			$error = join("\n", @errs);
+		} elsif ( $cmd eq 'mkdir') {
+			my @errs = `mkdir $arg 2>&1`;
+			$error = join("\n", @errs);
 		} elsif ( $cmd eq 'exec') {
 			my @errs = `$arg`;
 			$error = join("\n", @errs);
