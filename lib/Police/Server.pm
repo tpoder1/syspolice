@@ -435,6 +435,7 @@ sub DbAddFile {
 		my %flags =  $self->{Paths}->GetPathFlags($file, $mtypeflags.'A') ;
 		$diff{'Flags'} = { };
 		$diff{'FlagsToCheck'} = { %flags };
+
 	} 
 
 	# there are no flags to chek - we'll continune with another file
@@ -454,7 +455,7 @@ sub DbAddFile {
 		foreach my $flag (keys %{$diff{'FlagsToCheck'}} ) {
 			my $att = $FLAGSMAP{$flag};		# deterine the attribute name
 			if (!exists($diff{'Server'}->{$att}) || !exists($diff{'Client'}->{$att}) || $diff{'Server'}->{$att} ne $diff{'Client'}->{$att}) {
-				if ($att eq "md5") {	# for md5 comparsion try to do substring comparsion
+				if ($att eq "md5" && defined($diff{'Client'}->{$att}) && defined($diff{'Server'}->{$att}) ) {	# for md5 comparsion try to do substring comparsion
 					$diff{'Flags'}->{$flag} = '+' if (index($diff{'Client'}->{$att}, $diff{'Server'}->{$att}) == -1);
 				} else {
 					$diff{'Flags'}->{$flag} = '+';
@@ -468,12 +469,13 @@ sub DbAddFile {
 		} 
 	} elsif (!exists $diff{'Client'} && exists $diff{'Server'}) {
 		$diff{'Flags'}->{'-'} = 1;
-		foreach ( %{$diff{'FlagsToCheck'}} ) {
+		foreach ( keys %{$diff{'FlagsToCheck'}} ) {
 					$diff{'Flags'}->{$_} = '+';
 		}
+
 	} elsif (exists $diff{'Client'} && !exists $diff{'Server'}) {
 		$diff{'Flags'}->{'+'} = 1;
-		foreach ( %{$diff{'FlagsToCheck'}} ) {
+		foreach ( keys %{$diff{'FlagsToCheck'}} ) {
 					$diff{'Flags'}->{$_} = '+';
 		}
 	}
@@ -1449,13 +1451,15 @@ sub SyncClientPrepare {
 		# missed & differend file
 		} else {
 			if ( (exists $diff->{'Flags'}->{'-'} || exists $diff->{'Flags'}->{'5'} ) && !exists $diff->{'Flags'}->{'L'} ) {
-				if ($diff->{'Server'}->{'package'} =~ /dir:|tgz:/ ) {
+				if ($diff->{'Server'}->{'package'} =~ /dir:|tgz:/ && $diff->{'Server'}->{'mode'} !~ /^d/ ) {
 					# the theli on the server is symlink or regular file? 
 					if (exists $diff->{'Server'}->{'symlink'}) {
 						push(@cmd, [ "link", $diff->{'Server'}->{'symlink'}, $qfile ] );
 					} else {
 						push(@cmd, [ "get", $diff->{'Server'}->{'package'}, $qfile ] );
 					}
+				} elsif ( $diff->{'Server'}->{'mode'} =~ /^d/ ) {
+						push(@cmd, [ "mkdir", "", $qfile ] );
 				} else {
 					push(@cmd, [ "# ?", "", $qfile ] );
 				}
