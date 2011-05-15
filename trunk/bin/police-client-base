@@ -44,7 +44,9 @@ sub client_handle_xml_begin {
 		$ACTIONS{'scan'} = 1;
 		$CHECKSUM = $attrs{'checksum'}	if (defined $attrs{'checksum'} );
 	}
+
 	$ACTIONS{'backup'} = 1	if ($path eq 'server/actions/backup');
+
 	if ($path eq 'server/command') {
 		my $cmd = $attrs{'cmd'};
 		my $arg = $attrs{'arg'};
@@ -85,6 +87,13 @@ sub client_handle_xml_begin {
 		}
 	}
 
+	if ($path eq 'server/actions/chkconfig') {
+		$ACTIONS{'chkconfig'} = 1;
+	}
+
+	if ($path eq 'server/actions/chkconfig') {
+		$ACTIONS{'rpms'} = 1;
+	}
 }
 
 sub client_handle_xml_end {
@@ -115,6 +124,8 @@ printf "\t<capabilites>\n";
 printf "\t\t<scan/>\n";
 printf "\t\t<backup/>\n";
 printf "\t\t<command/>\n";
+printf "\t\t<chkconfig/>\n";
+printf "\t\t<rpms/>\n";
 printf "\t</capabilites>\n";
 
 # parse the XML input from the server
@@ -133,6 +144,9 @@ foreach (@PATHS) {
 	$Scan->{Paths}->AddPath($_);
 }
 
+#############################################
+# scan
+#############################################
 if (defined($ACTIONS{'scan'})) {
 	print "\t<scan>\n";
 	$Scan->{Checksum} = $CHECKSUM;
@@ -140,16 +154,9 @@ if (defined($ACTIONS{'scan'})) {
 	print "\t</scan>\n";
 }
 
-# return errors to the server
-if (@ERROR > 0) {
-	print "\t<errors>\n";
-	foreach (@ERROR) {
-		chomp;
-		printf "\t\t<error>%s</error>\n", $_ if ($_ ne "");
-	}
-	print "\t</errors>\n";
-}
-
+#############################################
+# backup
+#############################################
 if (defined($ACTIONS{'backup'})) {
 	print "\t<backup>\n";
 	if (defined(@{$Scan->{BackupList}})) {
@@ -167,8 +174,53 @@ if (defined($ACTIONS{'backup'})) {
 		close FB;
 	}
 #	printf "%s\n", join("\n", @{$Scan->{BackupList}});
-	
 	print "\t</backup>\n";
 }
+
+#############################################
+# rpm list 
+#############################################
+if (defined($ACTIONS{'rpms'})) {
+	print "\t<rpms>\n";
+	open RPM, "rpm -qa|"; 
+	while (<RPM>) {
+		chomp ;
+		printf "<rpm>%s</rpm>\n", $_;
+	}
+	close RPM;
+	print "\t</rpms>\n";
+}
+
+#############################################
+# chkconfig list 
+#############################################
+if (defined($ACTIONS{'chkconfig'})) {
+	print "\t<chkconfig>\n";
+	open CHKCONFIG, "chkconfig  --list | grep \"0:\"|"; 
+	while (<CHKCONFIG>) {
+		chomp ;
+		s/:on/:E/g;
+		s/:off/:D/g;
+		s/\d://g;
+		my ($service, @runlevels) = split(/\s+/);
+		printf "<service flags=\"%s\">%s</service>\n", join("", @runlevels), $service;
+	}
+	close CHKCONFIG;
+	print "\t</chkconfig>\n";
+}
+
+#############################################
+# error processing
+#############################################
+if (@ERROR > 0) {
+	print "\t<errors>\n";
+	foreach (@ERROR) {
+		chomp;
+		printf "\t\t<error>%s</error>\n", $_ if ($_ ne "");
+	}
+	print "\t</errors>\n";
+}
+
+
 printf "</client>\n";
 
