@@ -839,16 +839,17 @@ sub SendReport {
 			return 0;
 		}
 		my ($subject) = $self->{Config}->GetVal("subject"); 
-		my ($lines) = $self->{Config}->GetVal("maxlines"); 
 		my ($from) = $self->{Config}->GetVal("mailfrom"); 
 
 		$subject = sprintf("[POLICE] report for %s", $self->{HostId}) if (!defined($subject) || $subject eq "");
-		$lines = 8000 if (!defined($lines) || $lines eq "");
 
 		my %rcpts;
 		foreach my $mail (@mails) {	
 			next if (defined($rcpts{$mail}));
 			$self->{Log}->ProgressStep($mail);
+
+			my ($lines) = $self->{Config}->GetVal("maxlines"); 
+			$lines = 8000 if (!defined($lines) || $lines eq "");
 
 			my  $msg = Mail::Send->new(Subject => $subject, To => $mail);
 			$msg->set('From', $from) if (!defined($from) || $from ne "");
