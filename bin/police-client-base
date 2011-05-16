@@ -87,11 +87,11 @@ sub client_handle_xml_begin {
 		}
 	}
 
-	if ($path eq 'server/actions/chkconfig') {
-		$ACTIONS{'chkconfig'} = 1;
+	if ($path eq 'server/actions/services') {
+		$ACTIONS{'services'} = 1;
 	}
 
-	if ($path eq 'server/actions/chkconfig') {
+	if ($path eq 'server/actions/rpms') {
 		$ACTIONS{'rpms'} = 1;
 	}
 }
@@ -124,7 +124,7 @@ printf "\t<capabilites>\n";
 printf "\t\t<scan/>\n";
 printf "\t\t<backup/>\n";
 printf "\t\t<command/>\n";
-printf "\t\t<chkconfig/>\n";
+printf "\t\t<services/>\n";
 printf "\t\t<rpms/>\n";
 printf "\t</capabilites>\n";
 
@@ -194,19 +194,18 @@ if (defined($ACTIONS{'rpms'})) {
 #############################################
 # chkconfig list 
 #############################################
-if (defined($ACTIONS{'chkconfig'})) {
-	print "\t<chkconfig>\n";
+if (defined($ACTIONS{'services'})) {
+	print "\t<services>\n";
 	open CHKCONFIG, "chkconfig  --list | grep \"0:\"|"; 
 	while (<CHKCONFIG>) {
 		chomp ;
-		s/:on/:E/g;
-		s/:off/:D/g;
-		s/\d://g;
+		s/\d:off//g;
+		s/:on//g;
 		my ($service, @runlevels) = split(/\s+/);
-		printf "<service flags=\"%s\">%s</service>\n", join("", @runlevels), $service;
+		printf "<service name=\"%s\" levels=\"%s\"/>\n", $service, join("", @runlevels);
 	}
 	close CHKCONFIG;
-	print "\t</chkconfig>\n";
+	print "\t</services>\n";
 }
 
 #############################################

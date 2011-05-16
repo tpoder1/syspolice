@@ -211,7 +211,7 @@ sub ScanRpm($$$) {
 		}
 		$attrs{'package'}        = "rpm:".basename($rpmname);
 #		$attrs{'packagetype'}    = "rpm";
-#		$attrs{'packagename'}    = basename($lastname);
+		$attrs{'packagename'}    = substr(basename($lastname), 0, rindex(basename($lastname), "."));
 		$self->{FilesRef}->{$filename} = { %attrs };
 
 		if (defined($self->{ScanHook})) {
