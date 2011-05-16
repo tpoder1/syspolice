@@ -173,11 +173,15 @@ sub new {
 	$class->{Config}->SetMacro("backupfile", $class->{BackupFile});
 
 	# tie some hash variables
-	my (%client, %server, %diff, %statistics);
+	my (%client, %server, %diff, %statistics, %rpms, %services);
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
 	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
+	tie %rpms, 'MLDBM', $class->{WorkDir}.'/rpms.db';
+	tie %services, 'MLDBM', $class->{WorkDir}.'/services.db';
 	$class->{DiffDb} = \%diff;
 	$class->{Statistics} = \%statistics;
+	$class->{Rpms} = \%rpms;
+	$class->{Services} = \%services;
 	
 	return $class;
 }
@@ -214,6 +218,10 @@ sub HandleXmlBegin {
 		my %hash;
 		$name =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
 		$self->DbAddFile('C', $name, \%attrs);
+	} elsif ($path eq "client/services/service") {
+		my $name = $attrs{"name"};
+		my $flags = $attrs{"levels"};
+		$self->{Services}->{$name} = $flags;
 	}
 }
 
@@ -253,9 +261,9 @@ sub HandleXmlChar {
 			print $handle decode_base64($self->{BackupBuffer});
 			$self->{BackupBuffer} = undef;
 		}
-	} elsif ($path eq "client/errors/error") {
+	} elsif ($path eq "client/rpms/rpm") {
 		chomp $char;
-		$self->{Log}->Error("CLIENT: %s", $char);
+		$self->{Rpms}->{$char} = 1;
 	} elsif ($path eq "client/messages/mssage") {
 		chomp $char;
 		$self->{Log}->Progress("CLIENT: %s", $char);
@@ -559,11 +567,17 @@ sub Check {
 	untie $self->{Statistics};
 	unlink($self->{WorkDir}.'/diff.db');
 	unlink($self->{WorkDir}.'/statistics.db');
-	my (%diff, %statistics);
+	unlink($self->{WorkDir}.'/rpms.db');
+	unlink($self->{WorkDir}.'/services.db');
+	my (%diff, %statistics, %rpms, %services);
 	tie %diff, 'MLDBM', $self->{WorkDir}.'/diff.db';
 	tie %statistics, 'MLDBM', $self->{WorkDir}.'/statistics.db';
+	tie %rpms, 'MLDBM', $self->{WorkDir}.'/rpms.db';
+	tie %services, 'MLDBM', $self->{WorkDir}.'/services.db';
 	$self->{DiffDb} = \%diff;
 	$self->{Statistics} = \%statistics;
+	$self->{Services} = \%services;
+	$self->{Rpms} = \%rpms;
 
 	$self->StatSet('files_differend');
 	$self->StatSet('files_missed');
@@ -573,6 +587,14 @@ sub Check {
 
 	if ($self->ScanClient()) {
 		$self->ScanPackages();
+		my ($rpmdiff) = $self->{Config}->GetVal("rpmdiff");
+		if ($rpmdiff eq "yes" || $rpmdiff eq "1" || $rpmdiff eq "enable") {
+			$self->MkRpmDiffReport();
+		}
+		my ($servicediff) = $self->{Config}->GetVal("servicediff");
+		if ($servicediff eq "yes" || $servicediff eq "1" || $servicediff eq "enable") {
+			$self->MkServicesDiffReport();
+		}
 		$self->MkReport();
 	}
 
@@ -608,7 +630,10 @@ sub ScanClient {
 
 	push(@request, "\t</paths>");
 	push(@request, "\t<actions>");
-	push(@request, sprintf "\t\t<scan checksum=\"%s\" /><backup/>", join(",", @checksum));
+	push(@request, sprintf "\t\t<scan checksum=\"%s\" />", join(",", @checksum));
+	push(@request, sprintf "\t\t<backup/>\n");
+	push(@request, sprintf "\t\t<services/>\n");
+	push(@request, sprintf "\t\t<rpms/>\n");
 	push(@request, "\t</actions>");
 
 	# connect to the host and run command 
@@ -800,7 +825,7 @@ sub SendReport {
 	my ($self, $sendemail, $sendempty) = @_;
 
 
-	if (defined($self->{RepFile})) {
+	if (defined($self->{RepFile}) && defined($self->{RepHandle}) ) {
 		close $self->{RepHandle};
 		$self->{RepHandle} = undef;
 		my $fs;
@@ -1117,6 +1142,123 @@ sub MkBkpDiffReport {
 	system("find \"$old\" -depth -empty -type d -exec rmdir {} \\;");
 
 }
+
+=head2 MkRpmDiffReport
+
+create the report for the packages on the server and client side 
+
+=cut
+sub MkRpmDiffReport {
+	my ($self) = @_;
+
+	sub decode_pkg($) {
+		my ($pkg) = @_;
+
+		if (/(.+)-([\d\.\-]+-.+)/) {
+			return ($1, $2);
+		} 
+		return ($pkg, '');
+	}
+
+	$self->{Config}->SetMacro("action", "rpmpkgs");
+
+	# get list of packages on the server side 
+	my %srvlist;
+	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+		my $diff = $self->{'DiffDb'}->{$file};
+		next if ( ! exists $diff->{'Server'}->{'packagename'} ) ; 
+		my $packagename = $diff->{'Server'}->{'packagename'};
+		$srvlist{$packagename} = 1;
+	}
+
+	my $prev;
+	my %res ; 
+	foreach ( sort (keys %srvlist, keys %{$self->{Rpms}} )) {	
+		next if (exists $srvlist{$_} && exists $self->{Rpms}->{$_});
+		my ($pkg, $ver) = decode_pkg($_);
+		if ( exists $srvlist{$_} ) {
+			$res{$pkg}->{'S'} = $ver;
+		} else {
+			$res{$pkg}->{'C'} = $ver;
+		}
+	}
+
+	if (keys %res > 0) {
+		$self->Report("Packages report: \n");
+		$self->Report("   PACKAGE                               SERVER                         CLIENT \n");
+		foreach (sort keys %res) {
+			my ($c, $s) = ('-', '-');
+			$c = $res{$_}->{'C'} if exists $res{$_}->{'C'};
+			$s = $res{$_}->{'S'} if exists $res{$_}->{'S'};
+			$self->Report("   %-35s   %-30s %-30s\n", $_, $s, $c);
+		}
+		$self->Report("\n");
+	}
+}
+
+=head2 MkServicesDiffReport
+
+create the report for the packages on the server and client side 
+
+=cut
+sub MkServicesDiffReport {
+	my ($self) = @_;
+
+	sub format_srv($) {
+		my ($srv) = @_;
+
+		my $ret = '';
+		foreach (0 .. 6) {
+			if (index($srv, $_) >= 0) {
+				$ret .= $_;
+			} else {
+				$ret .= '.';
+			}
+		}
+		return $ret;
+	}
+
+	$self->{Config}->SetMacro("action", "services");
+
+	my @services = $self->{Config}->GetVal('service');
+
+	my %services; 	
+	foreach (@services) {
+		if (/\[(.+)\](.+)/) {
+			my ($flag, $service) = ($1, $2);
+			my $state = '+';
+			foreach my $ch (split(//, $flag)) {
+				if ($ch eq '+' || $ch eq '-') {
+					$state = $ch;
+				} else {
+					$services{$service}->{$ch} = $state;
+				}
+			}
+		}
+	}
+	foreach ( keys %services ) { 
+		delete ($services{$_}) if $services{$_} eq '-';
+	}
+
+	my $report = '';
+	foreach ( sort ( keys %services, keys %{$self->{Services}} ) ) {
+		my ($srv, $cli) = ('', '');
+		$srv = join('', keys %{$services{$_}}) if defined($services{$_});
+		$cli = $self->{Services}->{$_} if defined ($self->{Services}->{$_}) ;
+		if (format_srv($srv) ne format_srv($cli)) {
+			$report .= sprintf "   %-35s  %s  %s\n", $_, format_srv($srv), format_srv($cli);
+			
+		}
+	}
+
+	if ($report ne "") {
+		$report = "   SERVICE                              SERVER   CLIENT \n".$report;
+		$report = "Service report:\n".$report;
+		$report .= "\n";
+	}
+	$self->Report($report);
+}
+
 
 =head2 Download
 

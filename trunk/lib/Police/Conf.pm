@@ -211,7 +211,7 @@ sub load_config($$) {
 		}
 
 		# process fields path, include, exclude, backup, ...
-		if (defined($key eq "path")) {
+		if (defined($key) && ($key eq "path")) {
 			foreach (0 .. @val - 1) {
 				# set default flags and combine it with flags set by user
 				if ($val[$_] =~ /(\[.+\])(.+)/) {
