@@ -8,8 +8,8 @@ use Police::Log;
 use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2011-03-29.001";
-my $PVERSION	= "0.2";		# protocol version 
+my $VERSION		= "2011-05-17.001";
+my $PVERSION	= "0.3";		# protocol version 
 
 my @PATHS;
 my @ERROR;
@@ -182,7 +182,8 @@ if (defined($ACTIONS{'backup'})) {
 #############################################
 if (defined($ACTIONS{'rpms'})) {
 	print "\t<rpms>\n";
-	open RPM, "rpm -qa|"; 
+	#open RPM, "rpm -qa|"; 
+	open RPM, "rpm -q -a --queryformat='%{N}-%{V}-%{R}.%{arch}\n'|"; 
 	while (<RPM>) {
 		chomp ;
 		printf "<rpm>%s</rpm>\n", $_;
