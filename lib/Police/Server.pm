@@ -1174,6 +1174,8 @@ sub MkRpmDiffReport {
 	my $prev;
 	my %res ; 
 	foreach ( sort (keys %srvlist, keys %{$self->{Rpms}} )) {	
+		next if (/gpg-pubkey-.{8}-.{8}(\.none){0,1}/);	# ignore pgp pubkey entries
+		next if (/basesystem.*/);	# ignore basesystem package (doesn't contain any file)
 		next if (exists $srvlist{$_} && exists $self->{Rpms}->{$_});
 		my ($pkg, $ver) = decode_pkg($_);
 		if ( exists $srvlist{$_} ) {
