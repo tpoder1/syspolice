@@ -51,6 +51,9 @@ sub new {
 	} else {
 		$class->{Log} = $params{Log};
 	}
+	if (defined($params{RpmPkgHook})) {
+		$class->{RpmPkgHook} = $params{RpmPkgHook};
+	}
 	if (defined($params{ScanHook})) {
 		$class->{ScanHook} = $params{ScanHook};
 	}
@@ -189,6 +192,11 @@ sub ScanRpm($$$) {
 	$self->{Log}->Debug(10, ("Loading files for from %s for %s", $lastname, $rpmname ));
 	my $cmd = sprintf("rpm -q --nosignature --queryformat \"[%s\n]\" -p %s ", $tags, $lastname);
 
+	my $packagename = substr(basename($lastname), 0, rindex(basename($lastname), "."));
+	if (defined($self->{RpmPkgHook})) {
+		$self->{RpmPkgHook}->($self, $packagename);
+	}
+
 	open F1, "$cmd|";
 	while (<F1>) {
 		chomp;
@@ -211,7 +219,7 @@ sub ScanRpm($$$) {
 		}
 		$attrs{'package'}        = "rpm:".basename($rpmname);
 #		$attrs{'packagetype'}    = "rpm";
-		$attrs{'packagename'}    = substr(basename($lastname), 0, rindex(basename($lastname), "."));
+		$attrs{'packagename'}    = $packagename;
 		$self->{FilesRef}->{$filename} = { %attrs };
 
 		if (defined($self->{ScanHook})) {

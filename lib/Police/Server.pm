@@ -180,9 +180,10 @@ sub new {
 	tie %services, 'MLDBM', $class->{WorkDir}.'/services.db';
 	$class->{DiffDb} = \%diff;
 	$class->{Statistics} = \%statistics;
-	$class->{Rpms} = \%rpms;
+	$class->{RpmsClient} = \%rpms;
 	$class->{Services} = \%services;
 	
+	$class->{RpmsServer} = {};
 	return $class;
 }
 
@@ -222,7 +223,11 @@ sub HandleXmlBegin {
 		my $name = $attrs{"name"};
 		my $flags = $attrs{"levels"};
 		$self->{Services}->{$name} = $flags;
+	} elsif ($path eq "client/rpms/rpm") {
+		my $name = $attrs{"name"};
+		$self->{Rpms}->{$name} = 1;
 	}
+	
 }
 
 sub HandleXmlChar {
@@ -263,7 +268,7 @@ sub HandleXmlChar {
 		}
 	} elsif ($path eq "client/rpms/rpm") {
 		chomp $char;
-		$self->{Rpms}->{$char} = 1;
+		$self->{RpmsClient}->{$char} = 1;
 	} elsif ($path eq "client/messages/mssage") {
 		chomp $char;
 		$self->{Log}->Progress("CLIENT: %s", $char);
@@ -380,6 +385,20 @@ sub StatPrint {
 		}
 	}
 	return $res;
+}
+
+=head2 RpmPkgHook => \&RpmPkgHook
+
+This subroutine is called when the package is found
+# $pkg - package name
+
+=cut
+
+sub RpmPkgHook {
+	my ($self, $pkg) = @_;
+	
+	$self->{RpmsServer}->{$pkg} = 1;
+
 }
 
 =head2 PkgScanHook
@@ -577,7 +596,7 @@ sub Check {
 	$self->{DiffDb} = \%diff;
 	$self->{Statistics} = \%statistics;
 	$self->{Services} = \%services;
-	$self->{Rpms} = \%rpms;
+	$self->{RpmsClient} = \%rpms;
 
 	$self->StatSet('files_differend');
 	$self->StatSet('files_missed');
@@ -734,7 +753,7 @@ sub ScanPackages {
     $checksum = "md5" if (!defined($checksum));
 
 	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
-	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, RpmPkgHook => \&RpmPkgHook, Parrent => $self );
 	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
 	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
 
@@ -1009,7 +1028,10 @@ sub MkReport {
 
 
 		# skip files which are defined as nonexists and are not on the client side
-		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+		if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} ) {
+			$self->StatAdd('files_same', 1);
+			next;
+		}
 
 		# add to autocommit
 		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
@@ -1154,7 +1176,7 @@ sub MkRpmDiffReport {
 	sub decode_pkg($) {
 		my ($pkg) = @_;
 
-		if (/(.+)-([\d\.\-]+-.+)/) {
+		if (/^(.+?)-([\d\.\-]+-.+)$/) {
 			return ($1, $2);
 		} 
 		return ($pkg, '');
@@ -1162,23 +1184,16 @@ sub MkRpmDiffReport {
 
 	$self->{Config}->SetMacro("action", "rpmpkgs");
 
-	# get list of packages on the server side 
-	my %srvlist;
-	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
-		my $diff = $self->{'DiffDb'}->{$file};
-		next if ( ! exists $diff->{'Server'}->{'packagename'} ) ; 
-		my $packagename = $diff->{'Server'}->{'packagename'};
-		$srvlist{$packagename} = 1;
-	}
-
 	my $prev;
 	my %res ; 
-	foreach ( sort (keys %srvlist, keys %{$self->{Rpms}} )) {	
+	foreach ( sort (keys %{$self->{RpmsServer}}, keys %{$self->{RpmsClient}} )) {	
+		chomp;
 		next if (/gpg-pubkey-.{8}-.{8}(\.none){0,1}/);	# ignore pgp pubkey entries
 		next if (/basesystem.*/);	# ignore basesystem package (doesn't contain any file)
-		next if (exists $srvlist{$_} && exists $self->{Rpms}->{$_});
+		next if (exists $self->{RpmsServer}  && exists $self->{RpmsClient}->{$_});
 		my ($pkg, $ver) = decode_pkg($_);
-		if ( exists $srvlist{$_} ) {
+		#my ($pkg, $ver) = ($_, $_);
+		if ( exists $self->{RpmsClient}->{$_} ) {
 			$res{$pkg}->{'S'} = $ver;
 		} else {
 			$res{$pkg}->{'C'} = $ver;
@@ -1214,7 +1229,7 @@ sub MkServicesDiffReport {
 			if (index($srv, $_) >= 0) {
 				$ret .= $_;
 			} else {
-				$ret .= '.';
+				$ret .= '-';
 			}
 		}
 		return $ret;
@@ -1248,13 +1263,13 @@ sub MkServicesDiffReport {
 		$srv = join('', keys %{$services{$_}}) if defined($services{$_});
 		$cli = $self->{Services}->{$_} if defined ($self->{Services}->{$_}) ;
 		if (format_srv($srv) ne format_srv($cli)) {
-			$report .= sprintf "   %-35s  %s  %s\n", $_, format_srv($srv), format_srv($cli);
+			$report .= sprintf "   %-35s   %s  %s\n", $_, format_srv($srv), format_srv($cli);
 			
 		}
 	}
 
 	if ($report ne "") {
-		$report = "   SERVICE                              SERVER   CLIENT \n".$report;
+		$report = "   SERVICE                               SERVER   CLIENT \n".$report;
 		$report = "Service report:\n".$report;
 		$report .= "\n";
 	}
