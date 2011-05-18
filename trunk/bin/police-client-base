@@ -8,7 +8,7 @@ use Police::Log;
 use Police::Paths;
 use XML::Parser;
 
-my $VERSION		= "2011-05-17.001";
+my $VERSION		= "2011-05-19.001";
 my $PVERSION	= "0.3";		# protocol version 
 
 my @PATHS;
@@ -186,7 +186,7 @@ if (defined($ACTIONS{'rpms'})) {
 	open RPM, "rpm -q -a --queryformat='%{N}-%{V}-%{R}.%{arch}\n'|"; 
 	while (<RPM>) {
 		chomp ;
-		printf "<rpm>%s</rpm>\n", $_;
+		printf "\t\t\t<rpm name=\"%s\"/>\n", $_;
 	}
 	close RPM;
 	print "\t</rpms>\n";
