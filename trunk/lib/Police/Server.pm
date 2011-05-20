@@ -183,7 +183,7 @@ sub new {
 	$class->{RpmsClient} = \%rpms;
 	$class->{Services} = \%services;
 	
-	$class->{RpmsServer} = {};
+#	$class->{RpmsServer};
 	return $class;
 }
 
@@ -224,8 +224,10 @@ sub HandleXmlBegin {
 		my $flags = $attrs{"levels"};
 		$self->{Services}->{$name} = $flags;
 	} elsif ($path eq "client/rpms/rpm") {
-		my $name = $attrs{"name"};
-		$self->{Rpms}->{$name} = 1;
+		if (defined $attrs{"name"}) {
+			my $name = $attrs{"name"};
+			$self->{RpmsClient}->{$name} = 1;
+		}
 	}
 	
 }
@@ -396,9 +398,8 @@ This subroutine is called when the package is found
 
 sub RpmPkgHook {
 	my ($self, $pkg) = @_;
-	
-	$self->{RpmsServer}->{$pkg} = 1;
 
+	$self->{Parrent}->{RpmsServer}->{$pkg} = 1;
 }
 
 =head2 PkgScanHook
@@ -1190,10 +1191,10 @@ sub MkRpmDiffReport {
 		chomp;
 		next if (/gpg-pubkey-.{8}-.{8}(\.none){0,1}/);	# ignore pgp pubkey entries
 		next if (/basesystem.*/);	# ignore basesystem package (doesn't contain any file)
-		next if (exists $self->{RpmsServer}  && exists $self->{RpmsClient}->{$_});
+		next if (exists $self->{RpmsServer}->{$_} && exists $self->{RpmsClient}->{$_});
 		my ($pkg, $ver) = decode_pkg($_);
 		#my ($pkg, $ver) = ($_, $_);
-		if ( exists $self->{RpmsClient}->{$_} ) {
+		if ( exists $self->{RpmsServer}->{$_} ) {
 			$res{$pkg}->{'S'} = $ver;
 		} else {
 			$res{$pkg}->{'C'} = $ver;
@@ -1272,8 +1273,8 @@ sub MkServicesDiffReport {
 		$report = "   SERVICE                               SERVER   CLIENT \n".$report;
 		$report = "Service report:\n".$report;
 		$report .= "\n";
+		$self->Report($report);
 	}
-	$self->Report($report);
 }
 
 
