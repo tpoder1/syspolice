@@ -146,6 +146,9 @@ Each section allows to use different configuration options. Basic options are de
 || *Backup and commit definitions*
 || backupfile     || %{dbdir}/backup.tgz                               || Where the result of the backup is stored.        || 
 || commitdir      || %{dbdir}/commits/                                 || Where the result of the manul or autocommit are stored. ||
+|| *Advance checks* ||
+|| rpmdiff        || Example: yes                                      || Add installed rpms diff into scan report  ||
+|| servicesdiff   || Example: yes                                      || Add installed startup services diff into scan report  ||
 || *Kicstart preparation procedure* ||
 || ksfile         || %{basedir}/install/kickstart/%{system}.cfg        || Where police install cmd will create the installation kicstart file. ||
 || kstemplate     || %{basedir}/install/kickstart/kicstart-teplate.cfg || Where police install cmd should look for the kicstart template file. ||
@@ -378,6 +381,12 @@ The output from the client side for the previous request might by follow:
    <backup>
       tgz of the binnary data
    </backup>
+   <services>
+      <service name="service_name" levels="0123456"/>
+   </services>
+   <rpms>
+      <rpm name="package_name">
+   </rpms>
  </client>
 }}}
 
@@ -402,6 +411,8 @@ or:
    <capabilites> 
      <backup/>
      <scan/>
+     <services/>
+     <rpms/>
    </capabilities> 
    <error>The client is already in progres</error> 
  </client>
