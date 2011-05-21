@@ -13,6 +13,7 @@ use Police::Scan::Dir;
 use Police::Scan::Rpm;
 use Police::Scan::Tgz;
 use Police::Scan::Lst;
+use Police::Scan::Cache;
 use Data::Dumper;
 use MLDBM qw (DB_File Storable);
 use XML::Parser;
@@ -175,7 +176,7 @@ sub new {
 	# tie some hash variables
 	my (%client, %server, %diff, %statistics, %rpms, %services, %diffindex);
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
-	tie %diffindex, 'MLDBM', $class->{WorkDir}.'/diff_index.db';
+	tie %diffindex, 'MLDBM', $class->{WorkDir}.'/diff.idx';
 	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
 	tie %rpms, 'MLDBM', $class->{WorkDir}.'/rpms.db';
 	tie %services, 'MLDBM', $class->{WorkDir}.'/services.db';
@@ -606,13 +607,13 @@ sub Check {
 	untie $self->{DiffDb};
 	untie $self->{Statistics};
 	unlink($self->{WorkDir}.'/diff.db');
-	unlink($self->{WorkDir}.'/diff_indexdb');
+	unlink($self->{WorkDir}.'/diff.idx');
 	unlink($self->{WorkDir}.'/statistics.db');
 	unlink($self->{WorkDir}.'/rpms.db');
 	unlink($self->{WorkDir}.'/services.db');
 	my (%diff, %statistics, %rpms, %services, %diffindex);
 	tie %diff, 'MLDBM', $self->{WorkDir}.'/diff.db';
-	tie %diffindex, 'MLDBM', $self->{WorkDir}.'/diff_index.db';
+	tie %diffindex, 'MLDBM', $self->{WorkDir}.'/diff.idx';
 	tie %statistics, 'MLDBM', $self->{WorkDir}.'/statistics.db';
 	tie %rpms, 'MLDBM', $self->{WorkDir}.'/rpms.db';
 	tie %services, 'MLDBM', $self->{WorkDir}.'/services.db';
@@ -770,16 +771,26 @@ sub ScanPackages {
 	$self->StatSet('time_server');
 	$self->StatSet('files_server');
 
-	# clean-up the client database
-	my %scan;
+	my (%scan, $cache);
 
     my ($checksum) = $self->{Config}->GetVal("checksum");
     $checksum = "md5" if (!defined($checksum));
 
-	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
-	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, RpmPkgHook => \&RpmPkgHook, Parrent => $self );
-	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
-	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config => $self->{Config}, ScanHook => \&PkgScanHook, Parrent => $self );
+	# cache virtual package
+	$cache = Police::Scan::Cache->new(Log => $self->{Log}, Config => $self->{Config}, 
+							ScanHook => \&PkgScanHook, RpmPkgHook => \&RpmPkgHook, Parrent => $self );
+
+	# routines to scna packages
+	$scan{'dir'} = Police::Scan::Dir->new(Log => $self->{Log}, Config => $self->{Config}, 
+								ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, 
+								ScanHook => \&PkgScanHook, RpmPkgHook => \&RpmPkgHook, Parrent => $self );
+#	$scan{'rpm'} = Police::Scan::Rpm->new(Log => $self->{Log}, Config => $self->{Config}, 
+#								ScanHook => \&PkgScanHook, RpmPkgHook => \&{$cache->RpmPkgHook}, Parrent => $self );
+	$scan{'tgz'} = Police::Scan::Tgz->new(Log => $self->{Log}, Config => $self->{Config}, 
+								ScanHook => \&PkgScanHook, Parrent => $self );
+	$scan{'lst'} = Police::Scan::Lst->new(Log => $self->{Log}, Config => $self->{Config}, 
+								ScanHook => \&PkgScanHook, Parrent => $self );
 
 #	$scan{'dir'}->SetPathsDef($self->{Config}->GetVal("path"));
 #	$scan{'rpm'}->SetPathsDef($self->{Config}->GetVal("path"));
@@ -790,9 +801,11 @@ sub ScanPackages {
 		my ($type, $pkg) = split(/:/, $_);
 
 		if (defined($scan{$type})) {
+			$cache->Init($type,$pkg);
 			$self->{Log}->ProgressStep("%s:%s", $type, $pkg);
 			$scan{$type}->{Checksum} = $checksum;
 			$scan{$type}->ScanPkg($pkg);
+			$cache->Finish();
 		# unknown package type 
 		} else {
 			$self->{Log}->Error("ERR unknown the package type %s:%s", $type, $pkg); 
