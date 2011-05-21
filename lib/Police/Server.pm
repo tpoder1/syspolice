@@ -173,12 +173,14 @@ sub new {
 	$class->{Config}->SetMacro("backupfile", $class->{BackupFile});
 
 	# tie some hash variables
-	my (%client, %server, %diff, %statistics, %rpms, %services);
+	my (%client, %server, %diff, %statistics, %rpms, %services, %diffindex);
 	tie %diff, 'MLDBM', $class->{WorkDir}.'/diff.db';
+	tie %diffindex, 'MLDBM', $class->{WorkDir}.'/diff_index.db';
 	tie %statistics, 'MLDBM', $class->{WorkDir}.'/statistics.db';
 	tie %rpms, 'MLDBM', $class->{WorkDir}.'/rpms.db';
 	tie %services, 'MLDBM', $class->{WorkDir}.'/services.db';
 	$class->{DiffDb} = \%diff;
+	$class->{DiffIndex} = \%diffindex;
 	$class->{Statistics} = \%statistics;
 	$class->{RpmsClient} = \%rpms;
 	$class->{Services} = \%services;
@@ -508,8 +510,26 @@ sub DbAddFile {
 		}
 	}
 
-	# update recort in DB
+	# update record in DB
 	$self->{'DiffDb'}->{$file} = \%diff;
+
+	# update index db (only differend files)
+	my $toindex = 0;
+	if (keys %{$diff{'Flags'}} == 0) {
+		$self->StatAdd('files_same', 1);
+		
+	} elsif ( exists $diff{'Server'} && exists $diff{'Server'}->{'nonexists'} && !exists $diff{'Client'} ) {
+	# skip files that are defined as nonexists and are not on the client side
+		$self->StatAdd('files_same', 1);
+	} else {
+		$toindex = 1;
+	}
+
+	if ($toindex) {
+		$self->{'DiffIndex'}->{$file} = 1;
+	} else {
+		delete($self->{'DiffIndex'}->{$file});
+	}
 }
 
 =head2 RemoteCmd
@@ -586,15 +606,18 @@ sub Check {
 	untie $self->{DiffDb};
 	untie $self->{Statistics};
 	unlink($self->{WorkDir}.'/diff.db');
+	unlink($self->{WorkDir}.'/diff_indexdb');
 	unlink($self->{WorkDir}.'/statistics.db');
 	unlink($self->{WorkDir}.'/rpms.db');
 	unlink($self->{WorkDir}.'/services.db');
-	my (%diff, %statistics, %rpms, %services);
+	my (%diff, %statistics, %rpms, %services, %diffindex);
 	tie %diff, 'MLDBM', $self->{WorkDir}.'/diff.db';
+	tie %diffindex, 'MLDBM', $self->{WorkDir}.'/diff_index.db';
 	tie %statistics, 'MLDBM', $self->{WorkDir}.'/statistics.db';
 	tie %rpms, 'MLDBM', $self->{WorkDir}.'/rpms.db';
 	tie %services, 'MLDBM', $self->{WorkDir}.'/services.db';
 	$self->{DiffDb} = \%diff;
+	$self->{DiffIndex} = \%diffindex;
 	$self->{Statistics} = \%statistics;
 	$self->{Services} = \%services;
 	$self->{RpmsClient} = \%rpms;
@@ -1013,26 +1036,28 @@ sub MkReport {
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
-	my $maxcnt = keys %{$self->{'DiffDb'}};
+	#my $maxcnt = keys %{$self->{'DiffDb'}};
+	my $maxcnt = keys %{$self->{'DiffIndex'}};
 
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
-	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+	#foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffIndex'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
  
 		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
 		# tehere in nothing to report
-		if (keys %{$diff->{'Flags'}} == 0) {
-			$self->StatAdd('files_same', 1);
-			next;
-		}
+#		if (keys %{$diff->{'Flags'}} == 0) {
+#			$self->StatAdd('files_same', 1);
+#			next;
+#		}
 
 
 		# skip files which are defined as nonexists and are not on the client side
-		if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} ) {
-			$self->StatAdd('files_same', 1);
-			next;
-		}
+#		if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} ) {
+#			$self->StatAdd('files_same', 1);
+#			next;
+#		}
 
 		# add to autocommit
 		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
@@ -1294,21 +1319,21 @@ sub Download {
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
-	my $maxcnt = keys %{$self->{'DiffDb'}};
+	my $maxcnt = keys %{$self->{'DiffIndex'}};
 
 	printf $flist "\n";
 	printf $flist "# switch to the system \n";
 	printf $flist "system %-18s  \n\n", $self->{HostId} ;
 
 #	while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
-	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffIndex'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
 		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
 		# skip files which are defined as nonexists and are not on the client side
-		next if (keys %{$diff->{'Flags'}} == 0);
-		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+#		next if (keys %{$diff->{'Flags'}} == 0);
+#		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
 
 		if (defined($diff->{Client})) {
 			printf $flist "%-60s   # %s\n", $file, DescribeFile(%{$diff->{Client}});
@@ -1566,7 +1591,7 @@ sub SyncClientPrepare {
 
 	# traverse all files from both the client and the side
 	my $cnt = 0;
-	my $maxcnt = keys %{$self->{'DiffDb'}};
+	my $maxcnt = keys %{$self->{'DiffIndex'}};
 
 	my $flist = $self->{Edit}->InitList();
 
@@ -1575,15 +1600,15 @@ sub SyncClientPrepare {
 	printf $flist "system %-18s  \n\n", $self->{HostId} ;
 
 	#while ( my ($file, $diff) = each %{$self->{'DiffDb'}}) {
-	foreach my $file (sort keys %{$self->{'DiffDb'}}) {
+	foreach my $file (sort keys %{$self->{'DiffIndex'}}) {
 		my $diff = $self->{'DiffDb'}->{$file};
 
 		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 		
 		# skip same files
-		next if ( keys %{$diff->{'Flags'}} == 0 );
+	#	next if ( keys %{$diff->{'Flags'}} == 0 );
 		next if ( exists $diff->{'Flags'}->{'A'} );
-		next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
+	#	next if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} );
 
 		# skip files that do not match filter
 		if (defined($self->{Filter}) && $self->{Filter} ne "") {
