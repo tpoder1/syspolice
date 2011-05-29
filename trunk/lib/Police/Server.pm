@@ -1189,7 +1189,7 @@ sub MkBkpDiffReport {
 			if ($ret != 0) {
 				$self->Report("=== Diff for: /%s \n", $file);
 				open F1, "< $tempf";
-				while (<F1>) { $self->Report($_); }
+				while (<F1>) { $self->Report("%s", $_); }
 				close F1;
 				$self->Report("End of diff for /%s \n\n", $file);
 			} else {
@@ -1297,7 +1297,11 @@ sub MkServicesDiffReport {
 	}
 
 	my $report = '';
+	my %procesed;
 	foreach ( sort ( keys %services, keys %{$self->{Services}} ) ) {
+		next if (defined $procesed{$_});
+		$procesed{$_} = 1;
+
 		my ($srv, $cli) = ('', '');
 		$srv = join('', keys %{$services{$_}}) if defined($services{$_});
 		$cli = $self->{Services}->{$_} if defined ($self->{Services}->{$_}) ;
