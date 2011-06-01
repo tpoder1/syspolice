@@ -1292,8 +1292,11 @@ sub MkServicesDiffReport {
 			}
 		}
 	}
+
 	foreach ( keys %services ) { 
-		delete ($services{$_}) if $services{$_} eq '-';
+		foreach my $level ( keys %{$services{$_}} )  { 
+			delete ($services{$_}->{$level}) if $services{$_}->{$level} eq '-';
+		}
 	}
 
 	my $report = '';
@@ -1364,7 +1367,8 @@ sub Download {
 	}
 
 	chdir($self->{CurrDir});
-	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $self->{Edit}->GetEdFile($self->{HostId}));
+	my $edlist = $self->{Edit}->GetEdFile($self->{HostId});
+	my ($hout, $herr) = $self->RemoteCmd("tar -c -z --no-recursion --numeric-owner -T- -f- ", $edlist);
 	$self->{Log}->ProgressInit("downloading data ##");
 	$self->{Log}->ProgressStep("process");
 	open FOUT, "> download.tgz";
@@ -1373,6 +1377,7 @@ sub Download {
 	}	
 	close FOUT;
 	close $hout;
+	unlink($edlist);
 	$self->{Log}->ProgressStep("done\n");
 	$self->{Log}->Progress("downloaded data has been stored into download.tgz\n");
 
@@ -1563,7 +1568,8 @@ sub GetLst {
 	$self->{Log}->ProgressInit("creating output list file ##");
 	$self->{Log}->ProgressStep("working");
 
-	open FLIST, $self->{Edit}->GetEdFile($self->{HostId});
+	my $edlist = $self->{Edit}->GetEdFile($self->{HostId});
+	open FLIST, $edlist;
 	open FOUT, ">$filename";
 
 	printf FOUT "<listfile created=\"%s\">\n", strftime("%Y-%m-%dT%H:%M:%S", localtime);
@@ -1589,6 +1595,7 @@ sub GetLst {
 	print FOUT "</listfile>\n";
 	close FOUT;
 	close FLIST;
+	unlink($edlist);
 	$self->{Log}->ProgressStep("done\n");
 	$self->{Log}->Progress("data has been writen into %s\n", $filename);
 
@@ -1736,6 +1743,7 @@ sub SyncClientPerform {
 		}
 	}
 
+	unlink($edlist);
 	$self->RequestClient(@request);
 	$self->{Log}->Progress("Client has been synced...\n");
 
