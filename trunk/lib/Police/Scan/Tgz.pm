@@ -129,6 +129,7 @@ sub ScanPkg {
 	if ( -d $tdir ) {
 		system("rm -rf \"$tdir\"");
 	}
+	chdir $tmpdir;
 }
 
 =head2 GetTgzCmd
