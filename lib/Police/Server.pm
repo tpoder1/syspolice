@@ -187,6 +187,8 @@ sub new {
 	$class->{Services} = \%services;
 	
 #	$class->{RpmsServer};
+
+#	$sedl->{ReportedRpms} - RpmsNames that had been reported in MkRpmsReport
 	return $class;
 }
 
@@ -526,6 +528,7 @@ sub DbAddFile {
 		$toindex = 1;
 	}
 
+
 	if ($toindex) {
 		$self->{'DiffIndex'}->{$file} = 1;
 	} else {
@@ -639,6 +642,7 @@ sub Check {
 		if ($servicediff eq "yes" || $servicediff eq "1" || $servicediff eq "enable") {
 			$self->MkServicesDiffReport();
 		}
+
 		$self->MkReport();
 	}
 
@@ -1059,19 +1063,6 @@ sub MkReport {
  
 		$self->{Log}->ProgressStep("%d%%",  $cnt++ / $maxcnt * 100);
 
-		# tehere in nothing to report
-#		if (keys %{$diff->{'Flags'}} == 0) {
-#			$self->StatAdd('files_same', 1);
-#			next;
-#		}
-
-
-		# skip files which are defined as nonexists and are not on the client side
-#		if ( exists $diff->{'Server'} && exists $diff->{'Server'}->{'nonexists'} && !exists $diff->{'Client'} ) {
-#			$self->StatAdd('files_same', 1);
-#			next;
-#		}
-
 		# add to autocommit
 		$self->AutoCommitAdd($file) if exists $diff->{'Flags'}->{'A'};
 
@@ -1082,6 +1073,19 @@ sub MkReport {
 			$self->StatAdd('files_dwelled', 1);
 		} else {
 			$self->StatAdd('files_differend', 1);
+		}
+
+		# check whether the file should not be reported, because it have been reported in as the package diff
+		#$self->{ReportedRpms}->{"rpm:".$_."-".$s}
+		if (exists $diff->{'Server'} && exists $diff->{'Server'}->{'packagename'} && exists $self->{ReportedRpms}->{$diff->{'Server'}->{'packagename'}} ) {
+#			$self->StatAdd('files_skipped2', 1);
+			next;
+		}
+
+		# do not report directories that exists on the clinet but not on the server (empty lost+found, rpm dirs)
+		if (exists $diff->{'Flags'}->{'+'} && $diff->{'Client'}->{'mode'} =~ /^d/ ) {
+#			$self->StatAdd('files_skipped2', 1);
+			next;
 		}
 
 		$self->Report("%s  [%s]\n", $file, join("", sort keys %{$diff->{'Flags'}}));
@@ -1228,7 +1232,7 @@ sub MkRpmDiffReport {
 	foreach ( sort (keys %{$self->{RpmsServer}}, keys %{$self->{RpmsClient}} )) {	
 		chomp;
 		next if (/gpg-pubkey-.{8}-.{8}(\.none){0,1}/);	# ignore pgp pubkey entries
-		next if (/basesystem.*/);	# ignore basesystem package (doesn't contain any file)
+#		next if (/basesystem.*/);	# ignore basesystem package (doesn't contain any file)
 		next if (exists $self->{RpmsServer}->{$_} && exists $self->{RpmsClient}->{$_});
 		my ($pkg, $ver) = decode_pkg($_);
 		#my ($pkg, $ver) = ($_, $_);
@@ -1247,6 +1251,8 @@ sub MkRpmDiffReport {
 			$c = $res{$_}->{'C'} if exists $res{$_}->{'C'};
 			$s = $res{$_}->{'S'} if exists $res{$_}->{'S'};
 			$self->Report("   %-35s   %-30s %-30s\n", $_, $s, $c);
+			$self->{ReportedRpms}->{"rpm:".$_."-".$s} = 1 if exists $res{$_}->{'S'};
+			
 		}
 		$self->Report("\n");
 	}
