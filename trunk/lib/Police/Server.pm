@@ -868,6 +868,8 @@ Add string into the report. If the SendEmail flag is set then add into report fi
 
 sub ErrReport {
 	my ($self, $fmt, @arg) = @_;
+
+	$self->{Config}->SetMacro("action", "error");
 	$self->{Log}->Error($fmt, @arg);
 	$self->Report($fmt."\n", @arg);
 
@@ -905,7 +907,6 @@ sub SendReport {
 			close $fs;
 			return; 
 		}
-
 
 		$self->{Log}->ProgressInit("sending the %s report ##", $self->{Config}->GetVal("action"));
 
