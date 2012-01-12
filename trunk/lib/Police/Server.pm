@@ -911,7 +911,7 @@ sub SendReport {
 		$self->{Log}->ProgressInit("sending the %s report ##", $self->{Config}->GetVal("action"));
 
 		# test if the report is empty and shuld be send 
-		if (!defined($self->{NonEmptyReport}) && (defined($sendempty) && $sendempty)  ) {
+		if (!defined($self->{NonEmptyReport}) && (defined(!$sendempty) && !$sendempty)  ) {
 			$self->{Log}->ProgressStep("empty,skipped\n");
 			$self->{NonEmptyReport} = undef;
 			return;
@@ -1185,7 +1185,7 @@ sub MkBkpDiffReport {
 			next if (defined($diff{'Flags'}->{'F'}));
 			$self->Report("=== New file: /%s\n\n", $file);
 			open F1, "< $new/$file";
-			while (<F1>) { $self->Report($_); }
+			while (<F1>) { $self->Report("%s", $_); }
 			close F1;
 			
 		} else {

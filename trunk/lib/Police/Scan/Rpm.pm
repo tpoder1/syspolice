@@ -79,10 +79,29 @@ sub ParseRpmName($) {
 
 	$n = basename($n);
 
-	# <name>-<version>-<release>.<arch>.rpm
+	# <name>-<version>-<release>.<rEpo>.<arch>.rpm
 
 	if ($n =~ /(.+)\-(.+)\-(.+)\.(.+)(\.rpm)+/) {
-		return ($1, $2, $3, $4);
+		my ($n, $v1, $v2, $p, $e) = ($1, $2, $3, $4);
+		$n = "" if !defined($n);
+		$v1 = "" if !defined($v1);
+		$v2 = "" if !defined($v2);
+		$p = "" if !defined($p);
+		if ($v2 =~ /(.+)\.(\w+)/) {
+			($v2, $e) = ($1, $2);
+		}
+		$e = "" if !defined($e);
+		return ($n, $v1, $v2, $p, $e);
+	} elsif ($n =~ /(.+)\-(.+)\.(.+)(\.rpm)+/) {
+		my ($n, $v1, $p, $e) = ($1, $2, $3, $4);
+		$n = "" if !defined($n);
+		$v1 = "" if !defined($v1);
+		$p = "" if !defined($p);
+		if ($v1 =~ /(.+)\.(\w+)/) {
+			($v1, $e) = ($1, $2);
+		}
+		$e = "" if !defined($e);
+		return ($n, $v1, "", $p, $e);
 	}
 	return undef;
 }
@@ -109,6 +128,10 @@ sub CmpRpmName {
 				$s .= $_;
 			}
 		}
+
+#		$s = $s.("0" x (512 - length($s)));
+
+#		printf "\n".length($s).": ".$s."\n";
 		return $s;
 	}
 
@@ -116,17 +139,25 @@ sub CmpRpmName {
 		return $p1 cmp $p2;
 	}
 
-	my ($n1, $v1, $r1, $a1) = ParseRpmName($p1);
-	my ($n2, $v2, $r2, $a2) = ParseRpmName($p2);
+	my ($n1, $v1, $r1, $a1, $e1) = ParseRpmName($p1);
+	my ($n2, $v2, $r2, $a2, $e2) = ParseRpmName($p2);
+
+#	printf "P1: $p1: $n1, $v1, $r1, $a1, $e1\n";
+#	printf "P2: $p2: $n2, $v2, $r2, $a2, $e2\n";
+
 	if ($n2 eq $n1) {
 		# if we found the same name compare version
 		if ($v1 eq $v2) {
 			if ($r1 eq $r2) {
-				# elect earcitecture (respect order from the config file)
-				my %a = ();
-				my $x = 0;
-				foreach (@arch) { $a{$_} = $x++; }
-				return $a{$a2} <=> $a{$a1};
+				if ($e1 eq $e2) {
+					# elect earcitecture (respect order from the config file)
+					my %a = ();
+					my $x = 0;
+					foreach (@arch) { $a{$_} = $x++; }
+					return $a{$a2} <=> $a{$a1};
+				} else {
+					return xtrans($e1) cmp xtrans($e2);
+				}
 			} else {
 				return xtrans($r1) cmp xtrans($r2);
 			}
