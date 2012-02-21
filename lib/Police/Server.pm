@@ -1244,6 +1244,8 @@ sub MkRpmDiffReport {
 		}
 	}
 
+	my (@addlist, @dellist, @updlist);
+
 	if (keys %res > 0) {
 		$self->Report("Packages report: \n");
 		$self->Report("   PACKAGE                               SERVER                         CLIENT \n");
@@ -1253,10 +1255,19 @@ sub MkRpmDiffReport {
 			$s = $res{$_}->{'S'} if exists $res{$_}->{'S'};
 			$self->Report("   %-35s   %-30s %-30s\n", $_, $s, $c);
 			$self->{ReportedRpms}->{"rpm:".$_."-".$s} = 1 if exists $res{$_}->{'S'};
+
+			push(@addlist, $_) if (! exists $res{$_}->{'C'} && exists $res{$_}->{'S'});
+			push(@dellist, $_) if (exists $res{$_}->{'C'} && ! exists $res{$_}->{'S'});
+			push(@updlist, $_) if (exists $res{$_}->{'C'} && exists $res{$_}->{'S'});
 			
 		}
 		$self->Report("\n");
+		$self->Report("    Add list: %s\n", join(" ", @addlist)) if (@addlist > 0);
+		$self->Report("    Del list: %s\n", join(" ", @dellist)) if (@dellist > 0);
+		$self->Report("    Upd list: %s\n", join(" ", @updlist)) if (@updlist > 0);
+		$self->Report("\n");
 	}
+
 }
 
 =head2 MkServicesDiffReport
