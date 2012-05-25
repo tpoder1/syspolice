@@ -123,7 +123,9 @@ Each section allows to use different configuration options. Basic options are de
 || *option*       || *default value, example of use*                   ||  *description*   || 
 || *General options* ||
 || basedir        || /police                                      || The base dir where basic police structure is placed. ||
-|| dbdir          || /var/police/%{system}/                            || Directory where the scan database  is stored. ||
+|| dbdir          || /var/police/%{system}/                            
+|| silenterr      || false                       || If set to true error messages are not reported to the administrator (eg. when host is down) ||                                
+|| Directory where the scan database  is stored. ||
 || use            || Example: includes/base.pkgs                      || load configuration from the file and place into current position ||
 || *Options uses generaly by scanning the clinet* ||
 || hostname       || Example: webserver.foo.vutbr.cz                   || The client hostname. This hostname have to be used in DNS and have to be set as hostname on the client side.  ||
